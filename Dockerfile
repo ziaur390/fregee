@@ -13,7 +13,7 @@
 #    accidentally write outside its volume, and the uid being fixed means volume
 #    permissions are reproducible rather than dependent on the host.
 
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -36,7 +36,7 @@ RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.4" \
     && pip install .
 
 
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.14-slim-bookworm AS runtime
 
 # libgomp1 backs OpenMP, which both torch and onnxruntime need at import.
 # curl is only here for the healthcheck.
