@@ -360,6 +360,64 @@ def test_grafana_dashboard_path_matches_the_mount(compose) -> None:
 # ------------------------------------------------------------------ workflows
 
 
+def test_the_image_python_version_is_covered_by_the_test_matrix() -> None:
+    """The Python the image runs must be a Python the tests run on.
+
+    This is the drift Dependabot introduces and cannot see. A `docker` ecosystem
+    bump moved the Dockerfile from python:3.12 to python:3.14 while the test matrix
+    stopped at 3.13 - so the version actually deployed was never tested, and every
+    job stayed green.
+
+    The same check also guards the reverse: raising the matrix without moving the
+    image means the extra leg proves nothing about production.
+    """
+    import re
+
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    bases = re.findall(r"^FROM python:([\d.]+)", dockerfile, re.MULTILINE)
+    assert bases, "no python base image found in the Dockerfile"
+    assert len(set(bases)) == 1, f"the build stages disagree on Python: {sorted(set(bases))}"
+    image_version = bases[0]  # e.g. 3.14
+
+    ci = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    matrix_versions: set[str] = set()
+    for job in ci["jobs"].values():
+        versions = (job.get("strategy") or {}).get("matrix", {}).get("python")
+        if versions:
+            matrix_versions.update(str(v) for v in versions)
+
+    assert matrix_versions, "no test matrix found"
+    assert image_version in matrix_versions, (
+        f"the image runs Python {image_version} but the test matrix only covers "
+        f"{sorted(matrix_versions)}. The deployed version is untested."
+    )
+
+
+def test_workflow_actions_are_pinned_to_a_resolvable_form() -> None:
+    """Action references must be ``owner/repo@version``, not a branch or a SHA-less path.
+
+    Not a substitute for checking the tag exists - that needs network access - but it
+    catches the class of mistake behind the trivy failure, where `@0.28.0` omitted
+    the `v` and the job died during "Set up job" before any step ran.
+    """
+    import re
+
+    offenders: list[str] = []
+    for path in WORKFLOWS:
+        for match in re.findall(
+            r"^\s*-?\s*uses:\s*(\S+)", path.read_text(encoding="utf-8"), re.MULTILINE
+        ):
+            if match.startswith("./"):  # a local action
+                continue
+            assert "@" in match, f"{path.name}: {match} has no version"
+            _, _, ref = match.partition("@")
+            # A bare branch name like `main` or `master` is unpinned; the convention
+            # is a tag or a full commit SHA.
+            if ref in {"main", "master", "HEAD", "latest"}:
+                offenders.append(f"{path.name}: {match} tracks a moving branch")
+    assert not offenders, "unpinned action references:\n  " + "\n  ".join(offenders)
+
+
 def test_workflows_parse() -> None:
     assert WORKFLOWS, "no workflows found"
     for path in WORKFLOWS:

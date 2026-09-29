@@ -71,7 +71,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13"]
+        # 3.14 must be here because the Dockerfile runs it. Before this, the image
+        # shipped on a Python version the test matrix never covered - a Dependabot
+        # Dockerfile bump could have broken the runtime with every job still green.
+        python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
