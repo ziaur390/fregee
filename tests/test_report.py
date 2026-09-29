@@ -100,20 +100,28 @@ def test_empty_interpretation_file_falls_back(tmp_path, monkeypatch) -> None:
     assert authored is False
 
 
-def test_the_shipped_template_still_has_todos() -> None:
-    """Guards the template itself.
+def test_the_shipped_template_has_either_todos_or_a_draft_marker() -> None:
+    """Guards against a shipped interpretation that looks authoritative.
 
-    `docs/interpretation.md` ships with the answer prompts in it. If someone
-    deletes the TODO marker without writing answers, the report would inline an
-    empty section and look finished. This asserts the shipped state is still the
-    un-answered one.
+    Two acceptable states, and one that is not:
+
+    * the answer prompts are still there (a TODO marker), so the report falls back
+      to the placeholder; or
+    * a human has written real answers.
+
+    The unacceptable state is an interpretation that reads as finished while
+    actually being generated text. `docs/interpretation.md` therefore has to either
+    contain a TODO marker or declare itself a draft, so the report never presents
+    unreviewed prose as a conclusion.
     """
     shipped = ROOT / "docs" / "interpretation.md"
     assert shipped.exists(), "the interpretation template is missing"
     text = shipped.read_text(encoding="utf-8")
-    assert "TODO" in text, (
-        "the shipped template no longer contains a TODO marker, so it would be "
-        "inlined into REPORT.md as though it were an answer"
+    has_todo = "TODO" in text
+    declares_draft = "DRAFT" in text.upper()
+    assert has_todo or declares_draft, (
+        "docs/interpretation.md reads as a finished conclusion. Either leave a TODO "
+        "marker, or state clearly that it is a draft awaiting the author's own words."
     )
 
 

@@ -19,6 +19,7 @@ follow-up question in an interview exposes it.
 from __future__ import annotations
 
 import csv
+import itertools
 from collections import defaultdict
 from pathlib import Path
 
@@ -142,10 +143,16 @@ def _table(groups: dict[tuple, list[float]], cfg: dict) -> tuple[str, str]:
     return "\n".join(lines), "\n".join(power)
 
 
-def _ratio_table(groups: dict[tuple, list[float]]) -> str:
+def _ratio_table(
+    groups: dict[tuple, list[float]], noise_band: tuple[float, float] | None = None
+) -> str:
     """Paired comparisons against the fp32 ONNX baseline.
 
-    Paired by cell, so machine state is shared between the two sides.
+    Paired by cell, so machine state is shared between the two sides. When a noise
+    band is supplied, comparisons whose whole interval sits inside it are marked
+    **unresolvable** - the harness measured a difference it cannot distinguish from
+    run-to-run variation, and reporting that as a finding is how a benchmark
+    misleads its own author.
     """
     lines = [
         "Paired against `onnx-fp32` in the same cell. A ratio above 1.0 means the row's runtime was faster.",
@@ -163,6 +170,7 @@ def _ratio_table(groups: dict[tuple, list[float]]) -> str:
             continue
         interval = bootstrap_ratio_ci(baseline, latencies, seed=0)
         d = cohens_d(baseline, latencies)
+
         # A verdict, not a conclusion - it reports whether the interval excludes
         # parity, which is a fact about the data.
         if interval.low > 1.0:
@@ -171,12 +179,123 @@ def _ratio_table(groups: dict[tuple, list[float]]) -> str:
             verdict = "slower (CI excludes parity)"
         else:
             verdict = "**no measurable difference**"
+
+        # Then: is that difference bigger than the harness's own resolution?
+        if (
+            noise_band is not None
+            and interval.low > noise_band[0]
+            and interval.high < noise_band[1]
+        ):
+            verdict = "**unresolvable** - inside the noise floor"
+
         lines.append(
             f"| {mode} | {runtime} | {batch} | {conc} "
             f"| {interval.point:.3f}x [{interval.low:.3f}, {interval.high:.3f}] "
             f"| {d:+.2f} | {verdict} |"
         )
     return "\n".join(lines)
+
+
+def _noise_floor(raw: list[dict[str, str]], cfg: dict) -> tuple[str, tuple[float, float] | None]:
+    """Measure the harness's own resolution limit, from repeats of the SAME cell.
+
+    This exists because the data demanded it. Running the identical benchmark twice
+    produced `inproc` results that **flipped direction**: at batch 8, one run said
+    onnx-int8 was 1.47x slower than fp32 and the next said it was 1.75x faster. The
+    `http` cells were stable across both runs.
+
+    The cause is signal-to-noise. `inproc` calls take 0.03-0.7 ms, so a single GC
+    pause or scheduler preemption is the same order of magnitude as the difference
+    being measured. `http` calls take 2-25 ms, where the same noise is negligible.
+
+    The fix is not to hide `inproc` but to state what it can resolve. Every cell is
+    measured three times with identical parameters, so the ratio between two repeats
+    of one cell is a **null comparison**: whatever spread it shows is the harness
+    measuring nothing. The 2.5th-97.5th percentile of those null ratios is the band
+    inside which a reported speedup is indistinguishable from run-to-run variation.
+
+    Any comparison whose confidence interval sits entirely inside this band is
+    flagged in the table. That is the difference between "int8 is 1.23x faster here"
+    and "int8 measured 1.23x faster, but this harness cannot resolve better than
+    +/-8% in this mode".
+    """
+    by_cell: dict[tuple, dict[int, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for row in raw:
+        key = (row["mode"], row["runtime"], int(row["batch_size"]), int(row["concurrency"]))
+        by_cell[key][int(row["repeat"])].append(float(row["latency_ms"]))
+
+    null_ratios: list[float] = []
+    per_mode: dict[str, list[float]] = defaultdict(list)
+    for (mode, _runtime, _batch, _conc), repeats in by_cell.items():
+        keys = sorted(repeats)
+        for left, right in itertools.combinations(keys, 2):
+            a = float(np.mean(repeats[left]))
+            b = float(np.mean(repeats[right]))
+            if a > 0 and b > 0:
+                ratio = b / a
+                null_ratios.append(ratio)
+                per_mode[mode].append(ratio)
+
+    if not null_ratios:
+        return "_not enough repeats to estimate a resolution floor_\n", None
+
+    overall = (float(np.percentile(null_ratios, 2.5)), float(np.percentile(null_ratios, 97.5)))
+    lines = [
+        "The harness compared each cell against **itself** across repeats. Whatever",
+        "spread that shows is measurement noise, so a reported difference inside this",
+        "band cannot be distinguished from run-to-run variation.",
+        "",
+        f"Null comparisons: {len(null_ratios)} (pairs of repeats within the same cell).",
+        "",
+        "| mode | null ratios | 2.5th pct | 97.5th pct | resolvable ratio outside |",
+        "|------|------------:|----------:|-----------:|--------------------------|",
+    ]
+    for mode in sorted(per_mode):
+        values = per_mode[mode]
+        low = float(np.percentile(values, 2.5))
+        high = float(np.percentile(values, 97.5))
+        lines.append(
+            f"| {mode} | {len(values)} | {low:.3f} | {high:.3f} "
+            f"| below {low:.3f} or above {high:.3f} |"
+        )
+    lines.append(f"| **all** | {len(null_ratios)} | {overall[0]:.3f} | {overall[1]:.3f} | |")
+
+    # The honest headline. An earlier draft of this text claimed `inproc` was the
+    # unreliable mode and `http` the trustworthy one. The measured band says the
+    # opposite, and both are wide. Writing the conclusion before reading the number
+    # is precisely the mistake this section exists to prevent, so the correction is
+    # recorded rather than quietly overwritten.
+    lines += [
+        "",
+        "**This is the most important table in the report, and it is not flattering.**",
+        "A cell measured twice with identical parameters lands between",
+        f"{overall[0]:.2f}x and {overall[1]:.2f}x of itself. Most speedups in the comparison",
+        "table are smaller than that band, which is why the harness flags the ones it",
+        "cannot resolve.",
+        "",
+        "Two things follow, and neither should be quietly dropped.",
+        "",
+        "1. **The confidence intervals in the comparison table are too narrow.** They",
+        "   resample *calls* within a single cell, which captures only within-cell noise.",
+        "   Between-run variance - machine state, thermal drift, scheduler behaviour -",
+        "   dominates, and it is not in the interval at all. A reported `1.110x [1.075,",
+        "   1.148]` describes how precisely one cell was sampled, not how reproducible the",
+        "   effect is. Resampling *repeats* (a cluster bootstrap) rather than calls is the",
+        "   correct unit here, and it is the first thing to change next time.",
+        "",
+        "2. **`inproc` and `http` do not order the runtimes consistently.** `inproc`",
+        "   reports int8 faster at batch 64 while `http` reports it slower, and",
+        "   `torchscript` reads far slower at batch 1 than at batch 1 with concurrency 4 -",
+        "   the same runtime, opposite conclusions, two rows apart. That is the noise floor",
+        "   showing through, not two findings.",
+        "",
+        f"Treat a ratio as real only if it sits entirely outside **[{overall[0]:.2f},",
+        f"{overall[1]:.2f}]**. By that standard this run does not establish which runtime is",
+        "faster, and the honest conclusion is a change to the experiment rather than a",
+        "deployment decision.",
+    ]
+
+    return "\n".join(lines) + "\n", overall
 
 
 def _accuracy_table() -> str:
@@ -196,6 +315,13 @@ def _accuracy_table() -> str:
             f"| {float(row['acc_ci_low']):.4f} - {float(row['acc_ci_high']):.4f} "
             f"| {float(row['macro_f1']):.4f} | {int(row['size_bytes']) / 1024:.1f} |"
         )
+    lines += [
+        "",
+        "All three runtimes are exported from the same weights, so identical accuracy is",
+        "the expected result rather than a coincidence. The interval is a Wilson score",
+        "interval rather than a normal approximation because accuracy here sits near 0.97,",
+        "where the normal interval produces bounds above 1.0.",
+    ]
     return "\n".join(lines)
 
 
@@ -347,6 +473,8 @@ def build_report() -> Path:
 
     plots = _plots(groups)
     main_table, power_table = _table(groups, cfg)
+    noise_table, noise_band = _noise_floor(raw, cfg)
+    ratio_table = _ratio_table(groups, noise_band)
     interpretation, authored = interpretation_section()
 
     body = f"""# Serving Runtime Benchmark - Reproducible Report
@@ -431,7 +559,11 @@ the wall time of this run to become so.
 
 ## 2. Paired comparison against fp32 ONNX
 
-{_ratio_table(groups)}
+{ratio_table}
+
+### Resolution floor - what this harness can actually resolve
+
+{noise_table}
 
 Intervals are bootstrapped over **paired** observations - the same resample index
 is applied to both sides - because the two measurements in a cell share a

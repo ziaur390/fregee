@@ -30,12 +30,20 @@ PORT = int(os.environ.get("ALERT_SINK_PORT", "8080"))
 
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - http.server's naming
+        # Read the body BEFORE deciding anything, including before the 404 path.
+        #
+        # Not draining the body first is a real defect, not a style preference: the
+        # client has already sent Content-Length bytes, and a server that responds and
+        # closes without reading them makes the OS reset the connection. On Windows
+        # that surfaced as `ConnectionAbortedError: [WinError 10053]` in the test
+        # suite - a flaky test caused by a bug in the handler.
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b"{}"
+
         if self.path not in ("/alerts", "/"):
             self.send_error(404, "not found")
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
-        raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw or b"{}")
         except json.JSONDecodeError:

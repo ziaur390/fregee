@@ -160,6 +160,23 @@ def test_unknown_path_returns_404(sink) -> None:
     assert status == 404
 
 
+def test_error_response_drains_the_request_body(sink) -> None:
+    """A 404 must not abort the connection.
+
+    The handler first responded 404 without reading the body, so the client had
+    unread bytes in flight when the server closed. Windows turns that into
+    `ConnectionAbortedError: [WinError 10053]`, which appeared as a flaky test - the
+    flakiness was the symptom, an undrained body was the cause.
+
+    Sends a large body so the unread bytes certainly exceed the socket buffer, which
+    is the difference between "usually works" and "always works".
+    """
+    big = {"status": "firing", "padding": "x" * 200_000, "alerts": []}
+    for path in ("/webhook", "/alerts"):
+        status, _ = post(f"{sink}{path}", big)
+        assert status in {200, 404}, f"{path} returned {status}"
+
+
 def test_empty_body_is_tolerated(sink) -> None:
     status, _ = post(f"{sink}/alerts", b"")
     assert status == 200
