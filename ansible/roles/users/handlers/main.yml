@@ -1,0 +1,13 @@
+---
+- name: Validate sshd configuration before touching the daemon
+  ansible.builtin.command: sshd -t
+  changed_when: false
+  listen: restart sshd
+  # sshd -t first. A malformed sshd_config plus a restart is a locked-out host,
+  # and this is the one config file where that mistake is unrecoverable remotely.
+
+- name: Reload sshd
+  ansible.builtin.service:
+    name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+    state: reloaded
+  listen: restart sshd

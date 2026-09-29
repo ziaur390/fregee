@@ -1,0 +1,14 @@
+[Unit]
+Description=Run mlserve-ops drift detection every {{ drift_interval }}
+Documentation=https://github.com/ziaur390/fregee
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec={{ drift_interval }}
+# Spread the run so every host does not fire at the same instant.
+RandomizedDelaySec=30
+Persistent=true
+Unit=mlserve-drift.service
+
+[Install]
+WantedBy=timers.target

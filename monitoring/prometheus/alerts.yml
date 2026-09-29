@@ -1,0 +1,182 @@
+# Alert rules.
+#
+# Each rule states the condition, the threshold, and *why that threshold*. A rule
+# without a stated reason gets copied into the next project and then muted when it
+# turns out to be noisy, and a muted alert is worse than no alert because it
+# hides the real ones.
+#
+# Every metric referenced here is cross-checked against the metrics the
+# application and drift job actually expose by tests/test_monitoring.py. A rule
+# naming a metric that does not exist fails the test suite rather than silently
+# never firing - which is the normal way alerting rots.
+
+groups:
+  - name: mlserve-latency
+    rules:
+      - record: mlserve:request_p99_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, runtime) (rate(mlserve_request_duration_seconds_bucket[5m]))
+          )
+        labels:
+          component: api
+
+      - record: mlserve:request_p50_5m
+        expr: |
+          histogram_quantile(
+            0.50,
+            sum by (le, runtime) (rate(mlserve_request_duration_seconds_bucket[5m]))
+          )
+        labels:
+          component: api
+
+      - alert: MLServeP99LatencyBreach
+        # 50 ms p99. The benchmark measures the same endpoints at a p99 of roughly
+        # 4-40 ms depending on runtime and batch, so 50 ms sits above every
+        # measured cell. It is a ceiling that means "something changed", not a
+        # target - picking a number inside the measured range would make this fire
+        # on normal variance and train everyone to ignore it.
+        expr: mlserve:request_p99_5m > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "p99 latency above 50 ms for 5 minutes ({{ $labels.runtime }})"
+          description: |
+            Runtime {{ $labels.runtime }} has had a p99 above 50 ms for 5 minutes.
+            Check whether the batch size mix changed before assuming a code
+            regression: a shift from batch 1 to batch 64 raises latency by design.
+            See docs/runbook.md.
+
+      - alert: MLServeP99LatencyCritical
+        # 250 ms. Beyond this the request is slower than any measured cell by an
+        # order of magnitude, which means a dependency, not variance.
+        expr: mlserve:request_p99_5m > 0.25
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "p99 latency above 250 ms for 2 minutes ({{ $labels.runtime }})"
+          description: "An order of magnitude above any benchmarked cell. Treat as an outage."
+
+  - name: mlserve-availability
+    rules:
+      - alert: MLServeModelNotLoaded
+        # A gauge, not a counter: 0 means this instance cannot serve. Fires
+        # immediately because readiness is already failing and traffic is being
+        # rejected - waiting would only delay the diagnosis.
+        expr: mlserve_model_loaded == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "model not loaded for runtime {{ $labels.runtime }}"
+          description: |
+            /readyz should be failing and the orchestrator should be withholding
+            traffic. If the alert fires on every replica, the artifact is missing
+            rather than the process being unhealthy - check the deploy volume.
+
+      - alert: MLServeErrorRateHigh
+        # 2% of requests failing. Below this a single bad client sending malformed
+        # payloads can trip the alert; above it the failures are systemic.
+        expr: |
+          (
+            sum(rate(mlserve_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(mlserve_requests_total[5m]))
+          ) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "5xx rate above 2% for 5 minutes"
+          description: "Inference is failing at the transport level. Check mlserve_inference_errors_total for the runtime."
+
+      - alert: MLServeInferenceErrors
+        # Any inference exception is a defect, not load. No rate threshold.
+        expr: increase(mlserve_inference_errors_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "inference raised on runtime {{ $labels.runtime }}"
+          description: "A runtime is throwing. This is a bug, not saturation."
+
+      - alert: MLServeDbWriteFailures
+        # Predictions still succeed when persistence fails, so this alert is the
+        # only signal that the request log is losing rows. Silent data loss.
+        expr: increase(mlserve_db_write_errors_total[10m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          component: persistence
+        annotations:
+          summary: "request log writes are failing"
+          description: |
+            Inference is unaffected, which is why this is easy to miss. The drift
+            detector reads this table, so a sustained failure blinds drift
+            detection too. Check disk space and database connectivity.
+
+  - name: mlserve-data-quality
+    rules:
+      - alert: MLServeDriftDetected
+        # Set by the drift job when the PSI policy trips. The threshold lives in
+        # configs/drift.yaml, not here, so the alert and the job cannot disagree.
+        expr: mlserve_drift_alert == 1
+        for: 0m
+        labels:
+          severity: warning
+          component: drift
+        annotations:
+          summary: "input drift detected"
+          description: |
+            Check results/drift.json for which features moved, and the
+            mlserve_drift_psi_max gauge for the magnitude. Drift is not
+            necessarily a fault - it may be legitimate new traffic - but the model
+            is now being asked about a distribution it was not fitted on. See
+            docs/runbook.md for the triage order.
+
+      - alert: MLServeDriftDetectorStale
+        # Two hours without a successful run. The drift metrics are only as fresh
+        # as the last write to the textfile, so a stalled job looks exactly like a
+        # stable service: the gauge stays at its last value forever.
+        expr: time() - mlserve_drift_last_run_unixtime > 7200
+        for: 10m
+        labels:
+          severity: warning
+          component: drift
+        annotations:
+          summary: "drift detector has not run in over 2 hours"
+          description: "A stale drift gauge is indistinguishable from a healthy one. Check the cron timer and its last exit code."
+
+      - alert: MLServeValidationErrorSpike
+        # More than 1 rejected request per second sustained. Some rejection is
+        # normal; a sustained rate means an upstream client changed its payload
+        # shape and is now failing silently on its side.
+        expr: sum(rate(mlserve_validation_errors_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: info
+          component: api
+        annotations:
+          summary: "sustained request validation failures"
+          description: "A caller is sending malformed payloads. Check the 422 responses for the offending shape."
+
+      - alert: MLServeTailPowerLow
+        # Informational guard on the experiment itself, not the service. If a
+        # benchmark run collected fewer than 200 calls per cell, the p95 in
+        # REPORT.md is not a measurement - see stats.tail_is_underpowered.
+        expr: mlserve_drift_requests < 200
+        for: 1h
+        labels:
+          severity: info
+          component: drift
+        annotations:
+          summary: "drift window below the minimum comparison size"
+          description: "The drift job will report insufficient_data rather than a score."

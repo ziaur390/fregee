@@ -1,0 +1,146 @@
+---
+# base role - packages, time, patching, kernel and journald limits.
+#
+# Everything here is applied with a module rather than a shell task wherever
+# possible, because module arguments are declarative and idempotent by
+# construction. Shell tasks need explicit guards, and an unguarded one turns a
+# second run into a change report.
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - git
+      - python3
+      - python3-venv
+      - python3-pip
+      - ufw
+      - unattended-upgrades
+      - apt-listchanges
+      - logrotate
+      - rsync
+      - htop
+      - jq
+      - chrony
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Set the system timezone to UTC
+  ansible.builtin.timezone:
+    name: "{{ system_timezone | default('UTC') }}"
+
+# UTC everywhere, deliberately. Latency in the benchmark and drift timestamps in
+# the metrics are both compared against UTC, and a host in a local timezone makes
+# "the shift started at 09:00" ambiguous between the log and the graph.
+
+- name: Keep the clock in step
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+  # Drift windows are time-bounded. A host whose clock drifts silently compares
+  # the wrong window and reports stable.
+
+- name: Enable unattended security upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Managed by Ansible (mlserve-ops base role).
+      // Security patches only, applied daily, without a reboot prompt - this is a
+      // single-purpose host and an unattended upgrade is preferable to a machine
+      // left unpatched because nobody was watching.
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+  notify: restart unattended-upgrades
+
+- name: Only apply security updates, never distribution-wide changes
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/51mlserve-unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Managed by Ansible (mlserve-ops base role).
+      Unattended-Upgrade::Allowed-Origins {
+        "${distro_id}:${distro_codename}-security";
+        "${distro_id}ESMApps:${distro_codename}-apps-security";
+        "${distro_id}ESM:${distro_codename}-infra-security";
+      };
+      // Do not reboot on our behalf; that would drop traffic without warning.
+      Unattended-Upgrade::Automatic-Reboot "false";
+  notify: restart unattended-upgrades
+
+- name: Bound the journal so a noisy service cannot fill the disk
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/99-mlserve-limits.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (mlserve-ops base role).
+      [Journal]
+      Storage=persistent
+      # A recursive log directory grew to hundreds of MB on a demo box before this
+      # was capped. The disk alert fires on / rather than on /var/log, so the
+      # journal is a real cause of a full disk.
+      SystemMaxUse=500M
+      SystemMaxFileSize=50M
+      MaxRetentionSec=2week
+      Compress=yes
+  notify: restart journald
+
+- name: Kernel hardening via sysctl
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-mlserve-hardening.conf
+    state: present
+    reload: true
+  loop:
+    # Do not route traffic this host was not asked to route.
+    - { key: net.ipv4.ip_forward, value: "0" }
+    - { key: net.ipv6.conf.all.forwarding, value: "0" }
+    # Ignore ICMP redirects; accept them and an attacker can rewrite the route table.
+    - { key: net.ipv4.conf.all.accept_redirects, value: "0" }
+    - { key: net.ipv4.conf.default.accept_redirects, value: "0" }
+    - { key: net.ipv4.conf.all.secure_redirects, value: "0" }
+    - { key: net.ipv4.conf.all.send_redirects, value: "0" }
+    # SYN flood protection.
+    - { key: net.ipv4.tcp_syncookies, value: "1" }
+    # Log packets with impossible source addresses (RFC1918 arriving from outside).
+    - { key: net.ipv4.conf.all.log_martians, value: "1" }
+    # Refuse source-routed packets.
+    - { key: net.ipv4.conf.all.accept_source_route, value: "0" }
+    - { key: net.ipv6.conf.all.accept_source_route, value: "0" }
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Create the directories the stack writes to
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  loop:
+    - "{{ data_dir }}"
+    - "{{ artifact_dir }}"
+    - "{{ results_dir }}"
+    - "{{ backups_dir }}"
+
+- name: Create the node_exporter textfile directory
+  ansible.builtin.file:
+    path: "{{ textfile_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+  # Readable, not writable, by node_exporter: the app writes, the exporter reads.

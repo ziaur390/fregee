@@ -1,0 +1,50 @@
+---
+# logrotate role.
+#
+# Docker's own rotation is configured in the docker role via daemon.json. This
+# covers everything outside a container: the application's own output when run
+# under systemd, and the drift/backup job logs that systemd captures.
+
+- name: Configure logrotate for the application
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/mlserve-ops
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (mlserve-ops logrotate role).
+      {{ app_root }}/logs/*.log {
+          daily
+          rotate {{ log_rotate_count }}
+          size {{ log_rotate_size }}
+          compress
+          delaycompress
+          missingok
+          notifempty
+          create 0640 {{ app_user }} {{ app_group }}
+          # copytruncate rather than a postrotate signal: the application does not
+          # reopen its log file on SIGHUP, so moving the file would leave the
+          # process writing to an unlinked inode and the disk would fill anyway.
+          # copytruncate has a small window where lines can be lost; for
+          # application logs that is an acceptable trade against silent disk
+          # exhaustion, and it is the honest description of the choice.
+          copytruncate
+      }
+
+- name: Verify the logrotate configuration parses
+  ansible.builtin.command: logrotate --debug /etc/logrotate.d/mlserve-ops
+  register: logrotate_debug
+  changed_when: false
+  failed_when: logrotate_debug.rc != 0
+  # A syntax error in a logrotate config is reported by cron mail nobody reads,
+  # and rotation silently stops. Debug mode catches it at provisioning time.
+
+- name: Ensure the logrotate timer is active
+  ansible.builtin.service:
+    name: logrotate.timer
+    state: started
+    enabled: true
+
+- name: Report what logrotate would do
+  ansible.builtin.debug:
+    msg: "{{ logrotate_debug.stdout_lines | default([]) | select('search', 'log does not need rotating|considering') | list | first | default('logrotate parsed, nothing to rotate') }}"

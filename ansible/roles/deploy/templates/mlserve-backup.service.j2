@@ -1,0 +1,42 @@
+[Unit]
+Description=mlserve-ops backup with verified restore
+Documentation=https://github.com/ziaur390/fregee
+After=network-online.target mlserve-api.service
+
+[Service]
+Type=oneshot
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_root }}
+
+Environment=PYTHONPATH={{ app_root }}/src
+Environment=MLSERVE_ARTIFACTS={{ artifact_dir }}
+Environment=MLSERVE_RESULTS={{ results_dir }}
+Environment=MLSERVE_DATABASE_URL=sqlite:///{{ data_dir }}/mlserve.db
+
+# Write the backup, then immediately restore it into a scratch database and assert
+# row-count and checksum parity. Both steps in one unit on purpose: a backup that
+# has not been verified is a hypothesis, and putting verification in a separate
+# timer means it can be disabled without anyone noticing that the backup is now
+# unproven.
+ExecStart={{ app_root }}/.venv/bin/python -m mlserve.ops.backup_cli create
+ExecStartPost={{ app_root }}/.venv/bin/python -m mlserve.ops.backup_cli verify
+
+TimeoutStartSec=600
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths={{ data_dir }} {{ backups_dir }} {{ app_root }}/logs
+
+StandardOutput=append:{{ app_root }}/logs/backup.log
+StandardError=append:{{ app_root }}/logs/backup.err.log
+SyslogIdentifier=mlserve-backup
+
+[Install]
+WantedBy=multi-user.target

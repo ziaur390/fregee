@@ -1,0 +1,293 @@
+# The full stack.
+#
+# Startup is ordered and gated:
+#
+#   init (train + export + reference)  ->  api  ->  prometheus/grafana
+#
+# `init` runs to completion before api starts, because the api cannot serve
+# without artifacts. Without `service_completed_successfully` the api would race
+# the model build and readiness would flap.
+#
+# Storage is SQLite on a named volume. That is the fully tested path: the backup
+# and verified-restore drill in src/mlserve/ops/backup.py handles SQLite only, and
+# shipping a Postgres the restore path cannot verify would be worse than not
+# offering it. A commented-out Postgres service is included below with the exact
+# code change needed to use it.
+#
+# Services that something waits on have a healthcheck. `init` is gated by
+# service_completed_successfully instead, and the loop workers (drift, backup) have
+# healthchecks where they check something meaningful - a healthcheck that cannot
+# fail is worse than none, because it looks like monitoring.
+
+name: mlserve-ops
+
+x-mlserve-image: &mlserve-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: mlserve-ops:local
+
+services:
+  # ---------------------------------------------------------------- build stage
+  init:
+    <<: *mlserve-image
+    container_name: mlserve-init
+    command: ["python", "tasks.py", "pipeline"]
+    environment:
+      MLSERVE_ARTIFACTS: /artifacts
+      MLSERVE_DATABASE_URL: sqlite:////data/mlserve.db
+      MLSERVE_RESULTS: /results
+    volumes:
+      - artifacts:/artifacts
+      - data:/data
+      - results:/results
+    restart: "no"
+
+  # ---------------------------------------------------------------- serving
+  api:
+    <<: *mlserve-image
+    container_name: mlserve-api
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    environment:
+      MLSERVE_ARTIFACTS: /artifacts
+      MLSERVE_DATABASE_URL: sqlite:////data/mlserve.db
+      MLSERVE_RESULTS: /results
+      MLSERVE_PORT: "8000"
+      MLSERVE_ACCESS_LOG: "0"
+      OMP_NUM_THREADS: "1"
+      MLSERVE_TORCH_THREADS: "1"
+      # Single worker: multiple workers would make latency a function of an
+      # unmeasured queue and make the benchmark numbers incomparable to production.
+      MLSERVE_WORKERS: "1"
+    ports:
+      # Host ports are parameterised because a development machine usually has
+      # something on 8000 and 3000 already, and `docker compose up` failing with
+      # "port is already allocated" is a bad first experience. Set MLSERVE_API_PORT
+      # in .env to move it. See .env.example.
+      - "${MLSERVE_API_PORT:-8000}:8000"
+    healthcheck:
+      # Hits liveness, not readiness. Readiness is the orchestrator's signal to
+      # withhold traffic; a container whose model failed to load is a broken
+      # container and should be reported as unhealthy and restarted.
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - artifacts:/artifacts:ro
+      - data:/data
+      - results:/results
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- monitoring
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: mlserve-prometheus
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: mlserve-alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  alert-sink:
+    <<: *mlserve-image
+    container_name: mlserve-alert-sink
+    command: ["python", "-m", "mlserve.alert_sink"]
+    environment:
+      ALERT_SINK_PORT: "8080"
+    ports:
+      - "${ALERT_SINK_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: mlserve-grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      # Set these before exposing Grafana anywhere but localhost.
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # node_exporter exists here only for the textfile collector. The drift job
+  # cannot be scraped over HTTP, so it writes Prometheus textfile format into a
+  # shared volume and this picks it up - which is why the drift metrics and the
+  # host metrics share one target in prometheus.yml.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: mlserve-node-exporter
+    command:
+      - "--collector.textfile.directory=/textfile"
+      - "--collector.disable-defaults"   # host metrics are noise here; keep the textfile collector only
+      - "--collector.textfile"
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    volumes:
+      - drift-textfile:/textfile:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9100/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- jobs
+  drift:
+    <<: *mlserve-image
+    container_name: mlserve-drift
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    # A sleep loop rather than a cron daemon: one less process, and the interval
+    # is visible in one line. The `|| true` keeps a drift *alert* (exit code 2)
+    # from being mistaken for a crashed job.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          python tasks.py drift || echo "drift job exited $? (2 means alert, not failure)"
+          sleep ${DRIFT_INTERVAL_SECONDS:-300}
+        done
+    environment:
+      MLSERVE_ARTIFACTS: /artifacts
+      MLSERVE_DATABASE_URL: sqlite:////data/mlserve.db
+      MLSERVE_RESULTS: /results
+      # The drift job writes its Prometheus textfile straight into the collector
+      # directory with an atomic rename. This replaced a separate sidecar service
+      # that copied the file between two volumes - one less container, and no window
+      # where the collector could read a half-written file.
+      MLSERVE_TEXTFILE_DIR: /textfile
+      DRIFT_INTERVAL_SECONDS: "300"
+    volumes:
+      - artifacts:/artifacts:ro
+      - data:/data
+      - results:/results
+      - drift-textfile:/textfile
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /results/drift.json"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- backup
+  backup:
+    <<: *mlserve-image
+    container_name: mlserve-backup
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          python tasks.py backup && python tasks.py restore-verify \
+            || echo "backup or restore-verification FAILED at $(date -u +%FT%TZ)"
+          sleep ${BACKUP_INTERVAL_SECONDS:-3600}
+        done
+    environment:
+      MLSERVE_ARTIFACTS: /artifacts
+      MLSERVE_RESULTS: /results
+      MLSERVE_DATABASE_URL: sqlite:////data/mlserve.db
+      BACKUP_INTERVAL_SECONDS: "3600"
+    volumes:
+      - artifacts:/artifacts:ro
+      - data:/data:ro
+      - results:/results:ro
+      - backups:/app/backups
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------- optional
+  # Postgres, commented out on purpose. See the note at the top of this file:
+  # db.py and ops/backup.py currently implement the SQLite path only, and the
+  # restore verification would not be able to prove anything for Postgres.
+  # To use it:
+  #   1. install the extra: pip install '.[postgres]'
+  #   2. set MLSERVE_DATABASE_URL=postgresql+psycopg://mlserve:mlserve@postgres:5432/mlserve
+  #   3. extend ops/backup.py with pg_dump / pg_restore and a row-count check
+  #
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_USER: mlserve
+  #     POSTGRES_PASSWORD: mlserve
+  #     POSTGRES_DB: mlserve
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U mlserve"]
+  #     interval: 10s
+
+volumes:
+  artifacts:
+  data:
+  results:
+  backups:
+  drift-textfile:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+  # postgres-data:

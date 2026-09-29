@@ -1,0 +1,85 @@
+name: security
+
+# Dependency and container scanning.
+#
+# Scheduled rather than only on push, because the interesting failures here are
+# rarely caused by a change to this repository — they are CVEs published in a
+# dependency after the last commit. A pipeline that only scans on push reports a
+# clean repository that has been vulnerable for three weeks.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # 06:00 UTC every Monday.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dependencies:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit declared dependencies
+        # continue-on-error is deliberate. A transitive CVE in torch with no fixed
+        # release should not block every unrelated pull request — it should be
+        # visible, triaged, and tracked. Failing the build instead trains people to
+        # add `--ignore-vuln` until the check means nothing.
+        continue-on-error: true
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.4"
+          pip install -e .
+          pip-audit --progress-spinner off --desc on
+
+  container:
+    name: container scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: mlserve-ops:scan
+          cache-from: type=gha
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: mlserve-ops:scan
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+          # Only fixable findings, so the report is actionable rather than a list of
+          # things nobody can do anything about.
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Upload the SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: trivy.sarif
+      - name: Assert the image runs as non-root
+        # A container that runs as root is the finding this project can actually
+        # control, so it is enforced rather than reported.
+        run: |
+          user=$(docker inspect mlserve-ops:scan --format '{{.Config.User}}')
+          echo "image user: '${user:-<empty>}'"
+          if [ -z "$user" ] || [ "$user" = "root" ] || [ "$user" = "0" ]; then
+            echo "image runs as root"; exit 1
+          fi
+          echo "image runs as $user"

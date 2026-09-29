@@ -1,0 +1,21 @@
+---
+# Handlers for this role only. Role-scoped handlers are easier to reason about
+# than a shared pool: when a task notifies `restart journald`, the handler that
+# fires is the one defined next to the task that configures journald.
+
+- name: Reload systemd so the journald drop-in takes effect
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: restart journald
+
+- name: Restart journald
+  ansible.builtin.service:
+    name: systemd-journald
+    state: restarted
+  listen: restart journald
+
+- name: Restart unattended-upgrades
+  ansible.builtin.service:
+    name: unattended-upgrades
+    state: restarted
+  listen: restart unattended-upgrades

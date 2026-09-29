@@ -1,0 +1,5 @@
+# Runtime deps are pinned in pyproject.toml; this file exists so CI and Docker
+# can install without resolving the whole project metadata on every build.
+-r pyproject.toml
+
+# Install with: pip install -r requirements.txt

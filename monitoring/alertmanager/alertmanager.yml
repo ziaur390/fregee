@@ -1,0 +1,66 @@
+# Alertmanager routing.
+#
+# No external paging service, deliberately: this stack has to run at zero cost.
+# Alerts go to a local webhook receiver, which is enough to demonstrate routing,
+# grouping and inhibition for real - the container receives the POST and logs it,
+# so you can prove the path end to end rather than reading a config file.
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: local-webhook
+  # Group by alertname and component, so a single misbehaving runtime produces one
+  # notification rather than one per rule that happens to mention it.
+  group_by: ["alertname", "component"]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Criticals bypass the grouping delay. A p99 that is 10x any measured cell is
+    # an outage, and waiting 10s to see if more arrive buys nothing.
+    - matchers:
+        - severity = critical
+      receiver: local-webhook
+      group_wait: 0s
+      repeat_interval: 1h
+      continue: false
+
+    # Infos are batched hard. They are useful in aggregate and useless
+    # individually, and a channel that pings for every validation error gets
+    # ignored within a day.
+    - matchers:
+        - severity = info
+      receiver: local-webhook
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 12h
+      continue: false
+
+inhibit_rules:
+  # If the model is not loaded, every latency and error alert for that runtime is
+  # a symptom of the same cause. Suppressing them means the on-call person sees
+  # one actionable alert instead of five describing its consequences.
+  - source_matchers:
+      - alertname = MLServeModelNotLoaded
+    target_matchers:
+      - component = api
+    equal: ["runtime"]
+
+  # A critical latency breach subsumes the warning for the same runtime and
+  # endpoint. Without this, a real outage produces a warning and a critical that
+  # look like two separate incidents.
+  - source_matchers:
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: ["alertname", "component"]
+
+receivers:
+  - name: local-webhook
+    webhook_configs:
+      # The compose stack runs a tiny logger on this address. Nothing leaves the
+      # machine and no account is needed.
+      - url: "http://alert-sink:8080/alerts"
+        send_resolved: true

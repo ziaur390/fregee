@@ -1,0 +1,42 @@
+[Unit]
+Description=mlserve-ops drift detection
+Documentation=https://github.com/ziaur390/fregee
+After=network-online.target mlserve-api.service
+Wants=mlserve-api.service
+
+[Service]
+Type=oneshot
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_root }}
+
+Environment=PYTHONPATH={{ app_root }}/src
+Environment=MLSERVE_ARTIFACTS={{ artifact_dir }}
+Environment=MLSERVE_RESULTS={{ results_dir }}
+Environment=MLSERVE_DATABASE_URL=sqlite:///{{ data_dir }}/mlserve.db
+
+ExecStart={{ app_root }}/.venv/bin/python -m mlserve.drift.detect
+
+# The job exits 2 when the drift policy trips. That is a finding, not a failure,
+# so systemd must not mark the unit failed and page anyone. The alert path is the
+# Prometheus gauge the job writes, which the MLServeDriftDetected rule reads.
+SuccessExitStatus=2
+
+TimeoutStartSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths={{ data_dir }} {{ results_dir }} {{ textfile_dir }}
+
+StandardOutput=append:{{ app_root }}/logs/drift.log
+StandardError=append:{{ app_root }}/logs/drift.err.log
+SyslogIdentifier=mlserve-drift
+
+[Install]
+WantedBy=multi-user.target

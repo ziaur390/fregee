@@ -1,0 +1,4 @@
+---
+# deploy defaults.
+api_memory_max: 1G
+api_cpu_quota: "200%"

@@ -1,0 +1,59 @@
+---
+# firewall role.
+#
+# Default-deny inbound, allow only the ports the stack actually serves. The
+# default-deny is set before the allow rules so that a failure midway leaves the
+# host closed rather than open.
+
+- name: Reset ufw to a known state
+  community.general.ufw:
+    state: reset
+  when: ufw_reset | default(false)
+  # Off by default. Resetting on every run would drop the allow rules for the
+  # duration and is not idempotent-friendly; it exists for a rebuild.
+
+- name: Set the default inbound policy to deny
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Set the default outbound policy to allow
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  # Outbound stays open: the host needs apt, the container registry, and the git
+  # remote. Egress filtering is a bigger change than this host needs.
+
+- name: Rate-limit ssh before the allow rule so brute force is throttled
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+  notify: reload firewall
+  # `limit` not `allow`: six connections per 30 seconds per source address. Default
+  # ssh behaviour will happily accept thousands of password attempts a minute.
+
+- name: Allow the application ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ allowed_tcp_ports | difference(['22']) }}"
+  loop_control:
+    label: "{{ item }}"
+  notify: reload firewall
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled
+  notify: reload firewall
+
+- name: Verify the resulting ruleset
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+  failed_when: "'Status: active' not in ufw_status.stdout"
+
+- name: Show the active ruleset
+  ansible.builtin.debug:
+    var: ufw_status.stdout_lines

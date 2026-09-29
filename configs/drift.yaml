@@ -1,0 +1,98 @@
+# Drift detection configuration.
+#
+# ============================================================================
+# WHY PSI IS THE DECISION METRIC AND KS IS ONLY CORROBORATING
+#
+# This is a judgement call, and it is the one thing in this file worth reading.
+# ============================================================================
+#
+# Both metrics compare the distribution of a feature in recent served traffic
+# against the distribution it had in training. They disagree in a way that
+# matters, so only one of them can drive the alert.
+#
+# Kolmogorov-Smirnov is a formal hypothesis test. Its p-value answers "is there
+# any difference at all", and with enough observations the answer is always yes.
+# Here the comparison window is thousands of requests over 64 features, which
+# means KS will flag a shift so small that no model behaviour changes. It also
+# produces 64 p-values per run, and 64 independent tests at alpha=0.05 expect
+# roughly three false positives every single time, before any correction. A
+# detector that fires on noise gets muted, and a muted detector is worse than no
+# detector.
+#
+# Population Stability Index is a magnitude, not a test. It has no p-value and no
+# dependence on sample size by design, and it comes with thresholds the industry
+# already agrees on, so a 0.3 means the same thing on a 500-request window as on
+# a 50,000-request one. That stability is what makes it alertable.
+#
+# So: PSI decides. KS is recorded alongside it as supporting evidence - when PSI
+# says a feature moved and KS agrees, the shift is real and not a binning
+# artefact, and that pairing is what makes the number interpretable.
+#
+# Thresholds below are the conventional PSI bands. They are conventions, not
+# laws: they assume the reference is a reasonable proxy for what production
+# should look like, which is true here and is a claim worth re-checking in a real
+# deployment.
+# ============================================================================
+
+reference:
+  # Built from the training split only. Using the full dataset would leak the
+  # test distribution into the baseline and make the detector less sensitive
+  # exactly where it matters.
+  source: train_split
+  bins: 10
+  # Bins are quantile-based rather than equal-width. Equal-width bins over
+  # [0, 1] would put ~90% of every pixel feature into the first bin, because
+  # these are 8x8 digit images and most pixels are background - a shift inside
+  # that bin would be invisible.
+  #
+  # Quantile binning does NOT produce perfectly balanced bins here, and this
+  # comment should not be read as claiming it does. When a feature has heavy ties
+  # (many identical background pixels), several quantiles return the same value,
+  # so some bins become zero-width and empty. That turns out to help rather than
+  # hurt: a feature with empty reference bins has a reference proportion of zero,
+  # so production traffic landing in that region produces a large PSI
+  # contribution. The detector gets more sensitive to values the model never saw,
+  # which is precisely the failure it exists to catch. The PSI epsilon keeps the
+  # logarithm finite.
+  binning: quantile
+
+window:
+  # How many recent requests to compare. Bounded so that a shift which started
+  # this morning is not averaged away by a week of older traffic.
+  max_requests: 2000
+  # Also bound by time, so an idle service compares against a stale window
+  # rather than an ever-growing one.
+  within_minutes: 1440
+  # Below this, the window is too small for the comparison to mean anything and
+  # the job reports 'insufficient_data' rather than a number.
+  min_requests: 200
+
+thresholds:
+  # PSI < 0.1    no meaningful shift
+  # 0.1 - 0.25   moderate shift, worth watching, not worth paging
+  # > 0.25       significant shift, investigate
+  psi_watch: 0.1
+  psi_alert: 0.25
+  # Alert when this share of the 64 features is in the watch band or above. One
+  # feature moving is noise; a fifth of them moving together is a change in the
+  # input distribution.
+  max_fraction_watched: 0.2
+  # KS p-value recorded for corroboration only. Deliberately not used to alert -
+  # see the note above.
+  ks_pvalue_report_only: 0.01
+
+maintenance:
+  # Row cap for the request log. Enforced here rather than on the write path,
+  # because counting rows after every insert made writes quadratic in table size.
+  prune_to_max_rows: 50000
+
+outputs:
+  json: results/drift.json
+  # Prometheus textfile collector format, so the drift score can be graphed and
+  # alerted on with the same stack as the service metrics.
+  # The drift job also writes this file into $MLSERVE_TEXTFILE_DIR when that
+  # variable is set, where node_exporter's textfile collector reads it. The
+  # collector copy is written with an atomic rename, so the collector never sees a
+  # half-written file. Doing it in the job rather than in a sidecar container
+  # removes a whole service and the cross-volume copy it needed.
+  prometheus_textfile: results/drift.prom

@@ -1,0 +1,26 @@
+---
+- name: Reload systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: reload systemd
+
+- name: Restart the api and wait for readiness
+  ansible.builtin.systemd_service:
+    name: mlserve-api.service
+    state: restarted
+  listen: restart api and wait
+
+- name: Wait for /readyz to report ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ api_port }}/readyz"
+    status_code: 200
+    timeout: 5
+  register: readyz_after_restart
+  until: readyz_after_restart.status == 200
+  retries: 30
+  delay: 2
+  changed_when: false
+  listen: restart api and wait
+  # The restart is not finished until readiness passes. Without this, a deploy
+  # that leaves the service unable to load its model reports success, and the
+  # failure surfaces later as a 503 with no deploy anywhere in its history.

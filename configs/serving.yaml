@@ -1,0 +1,23 @@
+# Serving configuration.
+#
+# max_batch is the ceiling the API enforces on a single /predict/batch call.
+# It exists so that one caller cannot allocate an unbounded tensor and take the
+# process down: the route returns 413 rather than trying. It is the same value
+# the benchmark sweeps up to, which is deliberate - the largest batch the
+# benchmark measures is the largest batch the API will actually accept, so the
+# reported p99 is a number a real caller could hit.
+default_runtime: onnx-fp32
+max_batch: 64
+
+request_log:
+  # Persisted requests are what the drift job compares against the training
+  # reference distribution.
+  enabled: true
+  # 1.0 logs every request. Lower this in a real deployment: the drift metric
+  # only needs a sample, and full logging is both a disk and a privacy cost.
+  sample_rate: 1.0
+  # Hard ceiling on rows kept, so a demo left running overnight cannot fill the
+  # disk. Oldest rows are pruned on write once the cap is exceeded.
+  max_rows: 50000
+
+cors_origins: []

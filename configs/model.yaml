@@ -1,0 +1,28 @@
+# Model and training configuration.
+#
+# Every value here is part of the reproducibility contract: change a number,
+# and results/REPORT.md is no longer describing the same experiment. The
+# recording scripts write this file's hash into the run metadata so a report can
+# always be traced back to the config that produced it.
+
+seed: 1337
+
+data:
+  val_size: 0.15
+  test_size: 0.15
+
+model:
+  conv1: 16
+  conv2: 32
+  fc: 64
+  dropout: 0.1
+
+train:
+  epochs: 40
+  lr: 0.002
+  batch_size: 64
+  weight_decay: 0.0001
+
+paths:
+  # Resolved against the repository root by mlserve.config.
+  artifacts: artifacts

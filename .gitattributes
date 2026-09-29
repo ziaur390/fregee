@@ -1,0 +1,45 @@
+# Normalise line endings to LF in the repository.
+#
+# This is not cosmetic. Git's autocrlf on Windows rewrites text files to CRLF in
+# the working tree, and several files in this repository are consumed by Linux
+# processes that care:
+#
+#   Dockerfile          a CRLF continuation backslash breaks the build
+#   *.sh                "bad interpreter: /bin/sh^M"
+#   *.yml, *.yaml       Ansible and compose parse CRLF fine, but diffs churn
+#   *.j2, *.tftpl       systemd unit files tolerate CRLF, but the rendered
+#                       directive values can carry a trailing \r into a path
+#
+# Forcing LF here means the checked-out file is correct regardless of the local
+# core.autocrlf setting, which is the only way a repository can be reliably
+# reproducible across Windows and Linux contributors.
+
+* text=auto eol=lf
+
+# Explicit, because these are the ones where a stray \r is a real failure.
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.j2 text eol=lf
+*.tftpl text eol=lf
+*.tf text eol=lf
+Makefile text eol=lf
+
+# Python and docs: LF, matching the formatter.
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+
+# Binary: never touch.
+*.png binary
+*.jpg binary
+*.gz binary
+*.npz binary
+*.pt binary
+*.onnx binary
+*.ts binary
+*.docx binary
+*.pdf binary

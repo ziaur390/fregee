@@ -1,0 +1,74 @@
+# Provisioning playbook.
+#
+# Run: ansible-playbook -i ansible/inventory.ini ansible/playbook.yml
+#
+# This is the piece a managed platform hides from you, and the reason it is in
+# this repository: "we deployed to Render" does not demonstrate that you can
+# bring up a host. This does.
+#
+# It is written to be idempotent. Running it twice must report zero changed
+# tasks the second time, and that is the test - see the verification section in
+# VERIFICATION.md. Ansible modules are individually idempotent, but ordering
+# problems and shell tasks with no `creates:` guard routinely break the property,
+# and a provisioning script that is not idempotent cannot be re-run to fix a
+# partial failure.
+#
+# Hand-off: terraform/envs/* create the host and print the exact command to run
+# this playbook. Provisioning and configuration stay separate concerns, so
+# re-running configuration does not risk recreating the machine.
+
+- name: Provision the mlserve-ops host
+  hosts: mlserve
+  become: true
+  gather_facts: true
+
+  vars:
+    app_user: mlserve
+    app_group: mlserve
+    app_root: /opt/mlserve-ops
+    app_repo: "{{ mlserve_repo | default('https://github.com/ziaur390/fregee.git') }}"
+    app_version: "{{ mlserve_version | default('main') }}"
+    data_dir: /var/lib/mlserve
+    artifact_dir: /var/lib/mlserve/artifacts
+    results_dir: /var/lib/mlserve/results
+    textfile_dir: /var/lib/node_exporter/textfile
+    backups_dir: /var/lib/mlserve/backups
+    api_port: 8000
+    drift_interval: 5min
+    backup_interval: hourly
+
+    # Only these ports are opened. Everything else is denied by the firewall role.
+    allowed_tcp_ports:
+      - 22    # ssh - key-only, enforced in the users role
+      - 80    # http, redirects to https
+      - 443   # https
+      - "{{ api_port }}"
+      - 9090  # prometheus - admin only
+      - 9093  # alertmanager
+      - 3000  # grafana
+
+  roles:
+    - role: base
+      tags: [base]
+    - role: users
+      tags: [users]
+    - role: firewall
+      tags: [firewall]
+    - role: docker
+      tags: [docker]
+    - role: logrotate
+      tags: [logrotate]
+    - role: deploy
+      tags: [deploy]
+
+  post_tasks:
+    - name: Report the hand-off
+      ansible.builtin.debug:
+        msg:
+          - "service user:    {{ app_user }}"
+          - "application:     {{ app_root }} ({{ app_version }})"
+          - "artifacts:       {{ artifact_dir }}"
+          - "api:             http://{{ ansible_host }}:{{ api_port }}/readyz"
+          - "metrics:         http://{{ ansible_host }}:{{ api_port }}/metrics"
+          - "drift textfile:  {{ textfile_dir }}/drift.prom"
+          - "next:            curl -fsS http://{{ ansible_host }}:{{ api_port }}/readyz"

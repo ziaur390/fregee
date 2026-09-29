@@ -1,0 +1,63 @@
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+
+# Lint
+.ruff_cache/
+
+# Model + run artifacts (regenerate with `make train`)
+artifacts/
+results/
+
+# Databases + backups
+*.db
+*.sqlite
+*.sqlite3
+backups/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+# Rendered by the local env from modules/cloud-init. Generated, not source.
+terraform/envs/*/cloud-init.yaml
+
+# Ansible
+*.retry
+ansible/.vault_pass
+ansible/.ansible_facts/
+
+# Monitoring runtime data
+monitoring/data/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Env
+.env
+.env.*
+!.env.example

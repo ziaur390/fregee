@@ -1,0 +1,132 @@
+# Benchmark configuration.
+#
+# ============================================================================
+# THIS FILE IS THE EXPERIMENT DESIGN. It is the part of this repository that a
+# language model cannot write for you, because every number below is a
+# judgement about what would make the comparison fair or unfair.
+# ============================================================================
+#
+# Four decisions, and why they are what they are:
+#
+# 1. WHY COMPARE THESE THREE RUNTIMES
+#    They are the three ways the *same* trained weights actually get served in
+#    production: a serialised torch module, an fp32 ONNX graph, and a
+#    weight-quantised ONNX graph. Comparing PyTorch against ONNX against int8
+#    answers a question people actually ask before deploying. Comparing against
+#    a different framework would confound the runtime with the model.
+#
+# 2. WHY SWEEP BATCH SIZE
+#    Batch size is the single biggest lever on throughput and it changes the
+#    answer to "which runtime is fastest". At batch 1 the runtime's per-call
+#    overhead dominates; at batch 64 the arithmetic does. A single-batch
+#    benchmark would let you conclude "ONNX is faster" from a measurement that
+#    only holds at one operating point.
+#
+# 3. WHY SWEEP CONCURRENCY
+#    Every runtime here is configured single-threaded on purpose (see
+#    MLSERVE_TORCH_THREADS). With one thread, concurrency cannot make inference
+#    faster - it can only queue. Measuring it anyway turns an assumption into
+#    evidence, and it is the axis that exposes whether the API is the
+#    bottleneck or the runtime is.
+#
+# 4. WHY BOTH inproc AND http
+#    inproc calls the registry directly, so the only thing in the measurement is
+#    the runtime. http goes through the real server, so it includes JSON
+#    parsing, pydantic validation and ASGI overhead. If a gap appears in http
+#    but not in inproc, the runtime is not what you are measuring - the API is.
+#    Reporting only one of the two would hide that.
+#
+# ============================================================================
+
+seed: 1337
+
+# Calls discarded before timing starts. The first call through a TorchScript
+# module and an ONNX session both trigger lazy graph work; including them would
+# measure initialisation and call it inference cost.
+warmup_calls: 5
+
+# Independent trials per cell. Each trial redraws its samples from a different
+# seed offset, so the spread across trials reflects input variation as well as
+# machine noise.
+repeats: 3
+
+# Total samples drawn per trial in every cell. Held CONSTANT across batch sizes
+# and concurrency so that throughput is comparable between cells - if this
+# varied, a difference in throughput could be an artefact of sample count rather
+# than of the configuration.
+# 35 calls x 3 repeats = 105 observations per cell. That is deliberately just
+# above the 100-observation floor at which a p99 stops being simply the largest
+# value observed - see stats.tail_is_underpowered. Sizing it below 100 would put
+# a '**NO**' flag on every row of the report and make the tail column useless.
+# 70 calls x 3 repeats = 210 observations per cell.
+#
+# Sized from the standard above, not picked for convenience: 200 observations are
+# the minimum for a p95 to have 10 samples in its tail. Anything smaller makes
+# the p95 column decorative. The p99 column remains underpowered at this size and
+# the report says so explicitly instead of quietly printing a number.
+calls_per_repeat: 70
+
+# NOTE ON WHAT IS HELD CONSTANT
+# The constant here is the number of CALLS per trial, not the number of samples.
+# The two questions in this experiment need different things fixed:
+#   * latency is a per-call distribution, so the observation count per cell must
+#     be identical everywhere, or the p99 at batch 64 is estimated from a
+#     different sample size than the p99 at batch 1 and the comparison is not
+#     valid;
+#   * throughput is a rate (samples/second), so it normalises correctly even
+#     though one batch-64 call carries 64x the samples of a batch-1 call.
+# 40 calls x 3 repeats = 120 observations per cell, which is the minimum for the
+# p99 here to be an estimate rather than merely the largest value observed.
+# Rows below that threshold are flagged by stats.tail_is_underpowered.
+
+# Bootstrap resamples for every confidence interval in the report.
+bootstrap_resamples: 2000
+
+# Experimental standard for tail reporting: how many observations must land at or
+# above a percentile before that percentile is reported as a measurement rather
+# than a guess. See stats.tail_is_underpowered for why this is 10 and not 1.
+#
+# Consequence for this matrix: p50 is powered, p95 needs 200 observations per
+# cell, and p99 needs 1000. calls_per_repeat below is sized so that p95 is
+# powered. The p99 column will still be flagged, correctly - reaching it means
+# ~24x the wall time of this run, which is a deliberate trade left visible in the
+# report rather than hidden by dropping the column.
+min_tail_observations: 10
+
+# 95% intervals. Reported everywhere; no bare point estimates.
+ci_alpha: 0.05
+
+modes:
+  - inproc
+  - http
+
+runtimes:
+  - torchscript
+  - onnx-fp32
+  - onnx-int8
+
+batch_sizes:
+  - 1
+  - 8
+  - 32
+  - 64
+
+concurrency:
+  - 1
+  - 4
+
+# Accuracy is measured separately from timing: it has nothing to do with batch
+# size and running it inside the timing loop would corrupt the latency samples.
+accuracy:
+  enabled: true
+  note: "Measured on the held-out test split, 270 samples, all runtimes."
+
+# HTTP mode needs a server. The runner starts one on this port and shuts it down
+# afterwards, so `make bench` needs no manual setup.
+http:
+  host: "127.0.0.1"
+  port: 8077
+  startup_timeout_s: 45
+  # Larger than batch_sizes' maximum on purpose: the client-side timeout should
+  # not be the thing that decides whether a slow cell succeeds.
+  request_timeout_s: 30

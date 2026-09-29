@@ -1,0 +1,191 @@
+---
+# deploy role - checkout, virtualenv, model build, systemd units.
+#
+# Separate from the provisioning roles on purpose: this is the only role that
+# changes when a new version ships, so a deploy does not re-run apt or firewall
+# tasks and cannot lock anyone out.
+#
+# The models are built on the host rather than shipped as build artefacts. That
+# costs a minute of CPU at deploy time and buys the property that the running
+# service is provably derived from the checked-out source and the pinned config,
+# with no binary blob of unclear provenance in between.
+
+- name: Check out the application
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_root }}"
+    version: "{{ app_version }}"
+    force: true
+    accept_hostkey: true
+  register: checkout
+  notify: reload systemd
+
+- name: Ensure the log and run directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ app_root }}/logs", owner: "{{ app_user }}", group: "{{ app_group }}", mode: "0755" }
+    - { path: "/run/mlserve", owner: "{{ app_user }}", group: "{{ app_group }}", mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Create the virtualenv
+  ansible.builtin.command:
+    cmd: python3 -m venv {{ app_root }}/.venv
+    creates: "{{ app_root }}/.venv/bin/python"
+  # `creates:` is the guard that makes this idempotent. Recreating the venv on
+  # every run would force a full dependency reinstall and make the role take
+  # minutes instead of seconds.
+
+- name: Install dependencies into the virtualenv
+  ansible.builtin.pip:
+    requirements: "{{ app_root }}/requirements.txt"
+    virtualenv: "{{ app_root }}/.venv"
+    state: present
+  register: pip_result
+  notify: restart api and wait
+  # `ansible.builtin.pip` with requirements is not a shell task, so it reports
+  # changed only when something is actually installed or upgraded.
+
+- name: Install torch from the CPU wheel index
+  ansible.builtin.pip:
+    name: "torch>=2.4"
+    virtualenv: "{{ app_root }}/.venv"
+    extra_args: "--index-url https://download.pytorch.org/whl/cpu"
+    state: present
+  # Installed separately so the resolver does not reach for the CUDA wheel, which
+  # on this host would be 2.5 GB of libraries that are never loaded. See the
+  # Dockerfile for the same decision.
+
+- name: Build the models and the drift reference
+  ansible.builtin.command:
+    cmd: "{{ app_root }}/.venv/bin/python tasks.py pipeline"
+    chdir: "{{ app_root }}"
+  environment:
+    MLSERVE_ARTIFACTS: "{{ artifact_dir }}"
+    MLSERVE_DATABASE_URL: "sqlite:///{{ data_dir }}/mlserve.db"
+    MLSERVE_TORCH_THREADS: "1"
+  args:
+    creates: "{{ artifact_dir }}/reference.npz"
+  register: pipeline
+  notify: restart api and wait
+  # Guarded on reference.npz, the last artefact the pipeline writes, so the build
+  # runs once. Delete that file to force a rebuild.
+
+- name: Ensure the artefact tree is owned by the service account
+  ansible.builtin.file:
+    path: "{{ artifact_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+    recurse: true
+
+- name: Install the api unit
+  ansible.builtin.template:
+    src: mlserve-api.service.j2
+    dest: /etc/systemd/system/mlserve-api.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart api and wait
+
+- name: Install the drift service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - mlserve-drift.service
+    - mlserve-drift.timer
+  notify: reload systemd
+
+- name: Install the backup service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - mlserve-backup.service
+    - mlserve-backup.timer
+  notify: reload systemd
+
+- name: Enable and start the api
+  ansible.builtin.systemd_service:
+    name: mlserve-api.service
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Enable the drift timer
+  ansible.builtin.systemd_service:
+    name: mlserve-drift.timer
+    state: started
+    enabled: true
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: mlserve-backup.timer
+    state: started
+    enabled: true
+
+- name: Wait for readiness
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ api_port }}/readyz"
+    status_code: 200
+    timeout: 5
+  register: readyz
+  until: readyz.status == 200
+  retries: 30
+  delay: 2
+  changed_when: false
+
+- name: Check the api liveness endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ api_port }}/healthz"
+    status_code: 200
+    return_content: true
+  register: healthz
+  changed_when: false
+
+- name: Prove a prediction works end to end
+  ansible.builtin.command:
+    argv:
+      - "{{ app_root }}/.venv/bin/python"
+      - "-c"
+      - |
+        import json, urllib.request
+        payload = json.dumps({'features': [0.5] * 64}).encode()
+        request = urllib.request.Request(
+            'http://127.0.0.1:{{ api_port }}/predict',
+            data=payload,
+            headers={'Content-Type': 'application/json'},
+        )
+        body = json.loads(urllib.request.urlopen(request, timeout=10).read())
+        print('runtime=%s class=%s latency_ms=%.3f' % (
+            body['runtime'], body['predictions'][0]['predicted_class'], body['latency_ms']))
+  register: smoke
+  changed_when: false
+  # Runs real Python from the deployed virtualenv rather than a templated JSON
+  # body. Two reasons: Jinja has no list-repetition operator, so 64 copies of 0.5
+  # cannot be written inline without a lookup; and invoking the same interpreter
+  # the service uses proves the venv is actually functional, which a URI call
+  # through Ansible's own HTTP client would not.
+
+- name: Report what the deploy did
+  ansible.builtin.debug:
+    msg:
+      - "checked out:     {{ app_version }} ({{ checkout.after[:8] if checkout.after is defined else 'unchanged' }})"
+      - "dependencies:    {{ 'changed' if pip_result.changed else 'already satisfied' }}"
+      - "model build:     {{ 'ran' if pipeline.changed else 'already present' }}"
+      - "readiness:       {{ readyz.json.status | default('ok') }}"
+      - "liveness:        {{ healthz.json.version | default('?') }}"
+      - "inference:       {{ smoke.stdout | default('not run') }}"

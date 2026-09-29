@@ -1,0 +1,77 @@
+#cloud-config
+# Managed by Terraform (modules/cloud-init).
+#
+# This is the boot contract only. It puts a host on the network with the tools
+# needed to be *configured*, and stops there. Everything that defines the service
+# — firewall, ssh policy, systemd units, log rotation — is in the Ansible
+# playbook, so it can be re-applied to a running host without recreating it.
+
+hostname: ${hostname}
+timezone: ${timezone}
+manage_etc_hosts: true
+
+users:
+  - name: ${admin_user}
+    groups: [sudo, adm]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    lock_passwd: true
+    ssh_authorized_keys:
+%{ for key in ssh_keys ~}
+      - ${key}
+%{ endfor ~}
+
+package_update: true
+package_upgrade: false
+# upgrade: false on purpose. A full upgrade at boot takes minutes and can reboot
+# into a half-configured state. Security patching is handled by
+# unattended-upgrades, configured by the Ansible base role.
+
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - python3
+  - python3-venv
+  - python3-pip
+  - jq
+  - ufw
+  - chrony
+%{ for pkg in extra_packages ~}
+  - ${pkg}
+%{ endfor ~}
+
+write_files:
+  # A marker so `terraform output` and the Ansible role can both confirm this host
+  # came from the expected image rather than being something else that happens to
+  # answer on port 22.
+  - path: /etc/mlserve-provisioned
+    content: |
+      provisioned_by=terraform
+      module=modules/cloud-init
+      hostname=${hostname}
+    permissions: "0644"
+    owner: root:root
+
+%{ if install_docker ~}
+  - path: /etc/apt/keyrings/docker.asc
+    permissions: "0644"
+    owner: root:root
+    content: |
+      # Placeholder. The Ansible docker role fetches the real key; this file only
+      # exists so the directory and ownership are established at first boot.
+%{ endif ~}
+
+runcmd:
+  - [systemctl, enable, --now, chrony]
+  # Docker is installed by the Ansible docker role, not here. See the
+  # install_docker variable — the role sets daemon.json log caps that a bare
+  # `apt install docker.io` would miss, and unbounded container logs are the most
+  # common way a container host fills its disk.
+  - [touch, /var/log/cloud-init-mlserve-complete]
+  # Marker for the Ansible playbook: `wait_for` this file before applying, so the
+  # playbook does not race boot-time apt locks.
+
+final_message: |
+  mlserve-ops host ${hostname} is up.
+  Next: ansible-playbook -i ansible/inventory.ini ansible/playbook.yml

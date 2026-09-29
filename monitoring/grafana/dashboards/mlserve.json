@@ -1,0 +1,374 @@
+{
+  "uid": "mlserve-ops",
+  "title": "mlserve-ops — serving, errors and drift",
+  "description": "Latency, throughput, error rate, batch-size mix and input drift for the model service. Provisioned automatically; every panel queries metrics the API and drift job actually expose, cross-checked by tests/test_monitoring.py.",
+  "tags": ["mlserve", "mlops", "serving"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "editable": true,
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "runtime",
+        "label": "Runtime",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(mlserve_model_size_bytes, runtime)",
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "refresh": 1,
+        "sort": 1,
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Latency percentiles by runtime",
+      "description": "p50/p95/p99 of mlserve_request_duration_seconds. This measures the inference call only — the API records it before the background persistence task runs, so database latency is not charged to the caller.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 1, "fillOpacity": 0, "showPoints": "never" },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "p99",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le, runtime) (rate(mlserve_request_duration_seconds_bucket{runtime=~\"$runtime\"}[5m])))",
+          "legendFormat": "p99 {{runtime}}"
+        },
+        {
+          "refId": "p95",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, runtime) (rate(mlserve_request_duration_seconds_bucket{runtime=~\"$runtime\"}[5m])))",
+          "legendFormat": "p95 {{runtime}}"
+        },
+        {
+          "refId": "p50",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le, runtime) (rate(mlserve_request_duration_seconds_bucket{runtime=~\"$runtime\"}[5m])))",
+          "legendFormat": "p50 {{runtime}}"
+        }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Throughput (samples / second)",
+      "description": "Derived from mlserve_batch_size_sum: the histogram sum is the total sample count, so its rate is samples carried per second. This is why batch size is a histogram and not a counter — a request count would hide the difference between one batch of 64 and sixty-four batches of 1.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (runtime) (rate(mlserve_batch_size_sum{runtime=~\"$runtime\"}[5m]))",
+          "legendFormat": "{{runtime}}"
+        }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Requests per second by endpoint",
+      "description": "mlserve_requests_total split by endpoint, so a shift from /predict to /predict/batch is visible as it happens rather than only in the latency graph.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 1, "fillOpacity": 15, "showPoints": "never", "stacking": { "mode": "normal" } },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (endpoint) (rate(mlserve_requests_total[5m]))",
+          "legendFormat": "{{endpoint}}"
+        }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Error rate",
+      "description": "5xx share of all requests on the left axis, inference exceptions on the right. Any inference exception is a defect rather than saturation, so the threshold is zero — see the MLServeInferenceErrors rule.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "showPoints": "never" },
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.02 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(mlserve_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(mlserve_requests_total[5m])), 0.0001)",
+          "legendFormat": "5xx share"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (runtime) (rate(mlserve_inference_errors_total[5m]))",
+          "legendFormat": "inference errors {{runtime}}"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(mlserve_validation_errors_total[5m]))",
+          "legendFormat": "validation rejections"
+        }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Model loaded",
+      "description": "mlserve_model_loaded is 0 until a runtime is first requested, because loading is lazy. A 0 here on a busy instance is a real fault; a 0 on an idle one just means nothing has been served yet — which is why the alert requires 1 minute of sustained 0 rather than firing on first observation.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "not loaded", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "loaded", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_model_loaded{runtime=~\"$runtime\"}",
+          "legendFormat": "{{runtime}}",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background" }
+    },
+    {
+      "id": 6,
+      "type": "heatmap",
+      "title": "Batch size distribution",
+      "description": "Distribution of samples per inference call. A migration of mass from small to large batches explains a latency rise that has nothing to do with a regression — check this before the latency panel when MLServeP99LatencyBreach fires.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (le) (rate(mlserve_batch_size_bucket{runtime=~\"$runtime\"}[$__rate_interval]))",
+          "format": "heatmap",
+          "legendFormat": "{{le}}"
+        }
+      ],
+      "options": {
+        "calculate": false,
+        "color": { "mode": "scheme", "scheme": "Spectral", "reverse": true },
+        "yAxis": { "unit": "short", "axisPlacement": "left" },
+        "cellGap": 1,
+        "tooltip": { "mode": "single", "showColorScale": true }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Input drift (PSI)",
+      "description": "mlserve_drift_psi_max against the psi_watch and psi_alert thresholds from configs/drift.yaml (0.1 and 0.25). The thresholds are drawn from the config values, not hardcoded, so the graph and the alert rule cannot drift apart.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 3,
+          "custom": { "lineWidth": 2, "fillOpacity": 0, "showPoints": "auto" },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "psi_watch (0.1)" },
+            "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }, { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "psi_alert (0.25)" },
+            "properties": [{ "id": "custom.lineStyle", "value": { "dash": [10, 10], "fill": "dash" } }, { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_drift_psi_max",
+          "legendFormat": "max PSI"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_drift_psi_mean",
+          "legendFormat": "mean PSI"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "vector(0.1)",
+          "legendFormat": "psi_watch (0.1)"
+        },
+        {
+          "refId": "D",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "vector(0.25)",
+          "legendFormat": "psi_alert (0.25)"
+        }
+      ],
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Drift detector health",
+      "description": "Features watched, and how long since the last successful drift run. A stale detector is indistinguishable from a stable one on every other panel — the gauge simply stops moving — so this age is the panel that tells you whether to trust panel 7.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 25 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "features watched" },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 6 },
+                    { "color": "red", "value": 13 }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "since last run" },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "red", "value": 7200 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_drift_features_watched",
+          "legendFormat": "features watched",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_drift_features_alerted",
+          "legendFormat": "features alerted",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "time() - mlserve_drift_last_run_unixtime",
+          "legendFormat": "since last run",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background" }
+    },
+    {
+      "id": 9,
+      "type": "bargauge",
+      "title": "Runtime artifact size",
+      "description": "mlserve_model_size_bytes per runtime, read from disk at startup. This is the other half of the int8 trade-off: the benchmark reports that onnx-int8 is roughly 3.5x smaller, and this panel is where that shows up operationally.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 25 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "color": { "mode": "continuous-GrYlRd" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "mlserve_model_size_bytes{runtime=~\"$runtime\"}",
+          "legendFormat": "{{runtime}}",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "displayMode": "gradient" }
+    }
+  ]
+}

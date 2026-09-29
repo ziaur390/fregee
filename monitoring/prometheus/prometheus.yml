@@ -1,0 +1,41 @@
+# Prometheus scrape configuration.
+#
+# One job for the API. The drift job exposes nothing over HTTP: it writes a
+# textfile that node_exporter's textfile collector picks up, which is why the
+# drift metrics are scraped from the same target as the host metrics rather than
+# from the API process.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    service: mlserve-ops
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: mlserve-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          component: api
+
+  # Scrapes the drift metrics written by the drift cron job into the textfile
+  # directory. Without this the drift alerts in alerts.yml would never fire.
+  - job_name: mlserve-drift
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          component: drift
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

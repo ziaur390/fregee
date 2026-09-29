@@ -1,0 +1,16 @@
+# Grafana dashboard provisioning.
+# Points Grafana at the dashboards directory so mlserve.json is loaded on boot.
+
+apiVersion: 1
+
+providers:
+  - name: mlserve
+    orgId: 1
+    folder: mlserve-ops
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

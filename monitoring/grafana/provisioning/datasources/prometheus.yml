@@ -1,0 +1,19 @@
+# Grafana datasource provisioning.
+# Loaded at startup, so the dashboard works on a fresh `docker compose up` with no
+# manual clicking. A dashboard that requires setup steps is a dashboard nobody
+# looks at.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      # Matches prometheus.yml's scrape_interval, so query ranges line up with
+      # what was actually collected rather than interpolating between samples.
+      httpMethod: POST

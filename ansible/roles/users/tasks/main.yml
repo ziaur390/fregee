@@ -1,0 +1,79 @@
+---
+# users role - service account and ssh policy.
+
+- name: Create the application group
+  ansible.builtin.group:
+    name: "{{ app_group }}"
+    system: true
+    state: present
+
+- name: Create the application user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    group: "{{ app_group }}"
+    system: true
+    create_home: true
+    home: "/home/{{ app_user }}"
+    shell: /usr/sbin/nologin
+    comment: "mlserve-ops service account"
+    # A login shell on a service account is an unnecessary foothold. Deployment
+    # runs as root over ssh and drops to this user; nothing logs in as it.
+    state: present
+
+- name: Create the deploy group for operators
+  ansible.builtin.group:
+    name: "{{ deploy_group | default('deployers') }}"
+    state: present
+
+- name: Allow the deploy group to restart the service without a full sudo shell
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/50-mlserve-deploy
+    owner: root
+    group: root
+    mode: "0440"
+    content: |
+      # Managed by Ansible (mlserve-ops users role).
+      # Deliberately narrow. `systemctl restart` on two named units is enough to
+      # deploy, and it means a compromised operator account cannot rewrite the
+      # units it is allowed to restart.
+      %{{ deploy_group | default('deployers') }} ALL=(root) NOPASSWD: \
+        /usr/bin/systemctl restart mlserve-api.service, \
+        /usr/bin/systemctl restart mlserve-drift.service, \
+        /usr/bin/systemctl status mlserve-api.service, \
+        /usr/bin/journalctl -u mlserve-api.service
+    validate: "visudo -cf %s"
+
+- name: Harden sshd
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-mlserve-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (mlserve-ops users role).
+      # Key-only authentication. If you are locking yourself out by applying this
+      # to a host you only reach by password, stop and add your key first.
+      PasswordAuthentication no
+      PubkeyAuthentication yes
+      PermitRootLogin prohibit-password
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      X11Forwarding no
+      AllowAgentForwarding no
+      MaxAuthTries 4
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+  notify: restart sshd
+
+- name: Install authorised keys for the deploy group
+  ansible.posix.authorized_key:
+    user: "{{ item.user }}"
+    key: "{{ item.key }}"
+    state: present
+    exclusive: false
+  loop: "{{ deploy_authorized_keys | default([]) }}"
+  loop_control:
+    label: "{{ item.user }}"
+  when: deploy_authorized_keys is defined
+  # Explicitly optional: the VM path is expected to use cloud-init's key, and
+  # requiring this variable would make the role unusable without it.

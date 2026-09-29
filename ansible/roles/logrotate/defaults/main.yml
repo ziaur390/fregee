@@ -1,0 +1,4 @@
+---
+# logrotate defaults.
+log_rotate_count: 14
+log_rotate_size: 50M

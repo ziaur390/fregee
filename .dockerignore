@@ -1,0 +1,30 @@
+# Keep the build context small so the daemon does not ship the whole repo.
+.git
+.gitignore
+.github
+.venv
+venv
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Generated locally; rebuilt inside the image by the init service.
+artifacts
+results
+backups
+
+# Infrastructure that is not needed to build the image.
+terraform
+ansible
+tests
+docs
+monitoring
+
+# Windows noise
+desktop.ini
+Thumbs.db
+.DS_Store

@@ -1,0 +1,105 @@
+---
+# docker role - engine install plus a daemon configuration that will not fill the
+# disk.
+
+- name: Install the packages Docker's repository needs
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - python3-debian
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Add Docker's signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the Docker repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }}
+      signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+    filename: docker
+    state: present
+
+- name: Install the Docker engine
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Configure the Docker daemon
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "{{ docker_log_max_size }}",
+          "max-file": "{{ docker_log_max_file }}"
+        },
+        "live-restore": true,
+        "userland-proxy": false,
+        "no-new-privileges": true,
+        "icc": false
+      }
+  notify: restart docker
+  # Why each of these:
+  #   log-opts         - unbounded json-file logs are the single most common way a
+  #                      container host fills its disk. 10m x 3 per container.
+  #   live-restore     - containers survive a daemon restart, so upgrading Docker
+  #                      does not drop traffic.
+  #   userland-proxy   - false avoids a userspace proxy process per published port.
+  #   no-new-privileges- a container cannot gain privileges via setuid binaries.
+  #   icc: false       - containers cannot talk to each other unless explicitly
+  #                      linked on a shared network. The API does not need to reach
+  #                      Grafana, and this is the cheapest way to enforce that.
+
+- name: Create the log directory Docker's drop-in writes to
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable and start Docker
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Allow the deploy group to use the Docker CLI
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    groups: docker
+    append: true
+  # Membership of the docker group is equivalent to root, so this is granted to
+  # the service account only, and the service account has no login shell. The
+  # deployers group gets sudo on two systemctl units instead - see the users role.
+
+- name: Verify the engine answers
+  ansible.builtin.command: docker info --format '{% raw %}{{ .ServerVersion }}{% endraw %}'
+  register: docker_version
+  changed_when: false
+  failed_when: docker_version.rc != 0
+
+- name: Report the engine version
+  ansible.builtin.debug:
+    msg: "docker server {{ docker_version.stdout }}"

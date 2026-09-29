@@ -1,0 +1,22 @@
+# Example variable file for terraform/envs/free-tier.
+#
+# Copy to terraform.tfvars and fill in. .gitignore excludes *.tfvars, so this is
+# the only version that reaches git — do not rename it to terraform.tfvars and
+# commit, or you will commit your compartment OCID.
+#
+# Credentials are NOT here. tenancy_ocid, user_ocid, fingerprint and
+# private_key_path come from ~/.oci/config via the profile named below. Keeping
+# them out of this file is the reason the profile exists.
+
+compartment_ocid = "ocid1.compartment.oc1..aaaaaaaaexample"
+ssh_public_key   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyReplaceMe you@host"
+
+# Only free in your home region. Check before changing.
+region = "me-jeddah-1"
+
+# Always Free Ampere A1: 4 OCPUs and 24 GB across the whole tenancy, not per instance.
+ocpus     = 1
+memory_gb = 6
+
+instance_name     = "mlserve"
+oci_config_profile = "DEFAULT"

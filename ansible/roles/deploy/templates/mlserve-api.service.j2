@@ -1,0 +1,81 @@
+[Unit]
+Description=mlserve-ops inference API
+Documentation=https://github.com/ziaur390/fregee
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_root }}
+
+Environment=PYTHONPATH={{ app_root }}/src
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MLSERVE_ARTIFACTS={{ artifact_dir }}
+Environment=MLSERVE_RESULTS={{ results_dir }}
+Environment=MLSERVE_DATABASE_URL=sqlite:///{{ data_dir }}/mlserve.db
+Environment=MLSERVE_HOST=0.0.0.0
+Environment=MLSERVE_PORT={{ api_port }}
+Environment=MLSERVE_ACCESS_LOG=0
+# Single-threaded by design: latency would otherwise depend on how many cores the
+# host happens to have, and the benchmark numbers would stop describing production.
+Environment=OMP_NUM_THREADS=1
+Environment=MLSERVE_TORCH_THREADS=1
+Environment=MLSERVE_WORKERS=1
+
+ExecStart={{ app_root }}/.venv/bin/python -m mlserve.server
+
+Restart=always
+RestartSec=3
+# Give it room to load the model before systemd gives up: a cold TorchScript load
+# on a small instance can take a few seconds.
+TimeoutStartSec=60
+TimeoutStopSec=20
+
+# --- hardening -------------------------------------------------------------
+# Each of these closes a capability the service does not use. They are cheap and
+# they turn a compromise of the inference process into a much smaller problem.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# MemoryDenyWriteExecute must stay false: CPython and the torch/onnxruntime JIT
+# need writable-executable memory. Setting it true makes the service fail to start
+# with an unhelpful error, and it is a common copy-paste mistake in unit files.
+
+# ProtectSystem=strict makes the whole filesystem read-only, so the paths the
+# service genuinely writes to are listed explicitly.
+ReadWritePaths={{ data_dir }} {{ results_dir }} {{ app_root }}/logs
+ReadOnlyPaths={{ artifact_dir }}
+
+# --- limits -----------------------------------------------------------------
+# A model service that runs away should be killed and restarted rather than
+# starving the host. Tune MemoryMax for the real model; 1G is generous for this
+# one and deliberately not "unlimited".
+MemoryMax={{ api_memory_max }}
+CPUQuota={{ api_cpu_quota }}
+TasksMax=256
+
+# --- observability ----------------------------------------------------------
+StandardOutput=append:{{ app_root }}/logs/api.log
+StandardError=append:{{ app_root }}/logs/api.err.log
+SyslogIdentifier=mlserve-api
+
+[Install]
+WantedBy=multi-user.target
