@@ -57,24 +57,24 @@ variable "extra_packages" {
 
 output "user_data" {
   description = "Rendered cloud-init configuration, base64-encoded as the providers expect."
-  value       = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    hostname      = var.hostname
-    admin_user    = var.admin_user
-    ssh_keys      = var.ssh_authorized_keys
+  value = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {
+    hostname       = var.hostname
+    admin_user     = var.admin_user
+    ssh_keys       = var.ssh_authorized_keys
     install_docker = var.install_docker
-    timezone      = var.timezone
+    timezone       = var.timezone
     extra_packages = var.extra_packages
   }))
 }
 
 output "user_data_raw" {
   description = "Rendered cloud-init configuration as plain text, for inspection."
-  value       = templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    hostname      = var.hostname
-    admin_user    = var.admin_user
-    ssh_keys      = var.ssh_authorized_keys
+  value = templatefile("${path.module}/cloud-init.yaml.tftpl", {
+    hostname       = var.hostname
+    admin_user     = var.admin_user
+    ssh_keys       = var.ssh_authorized_keys
     install_docker = var.install_docker
-    timezone      = var.timezone
+    timezone       = var.timezone
     extra_packages = var.extra_packages
   })
 }

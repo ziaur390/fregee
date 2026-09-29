@@ -310,6 +310,86 @@ def test_sshd_handler_validates_before_restarting() -> None:
 # ------------------------------------------------------------------ firewall parity
 
 
+def test_declared_collections_cover_every_module_used() -> None:
+    """Every module outside ``ansible.builtin`` must be declared in requirements.yml.
+
+    ansible-core ships only ``ansible.builtin``. This playbook uses
+    ``community.general.ufw``, ``ansible.posix.sysctl`` and
+    ``ansible.posix.authorized_key``, none of which are in ansible-core - so a
+    machine that installed Ansible via ``pip install ansible-core`` fails at those
+    tasks with "couldn't resolve module/action".
+
+    It worked on the development machine only because the Ubuntu ``ansible`` package
+    bundles both collections. That is exactly the accidental dependency that makes a
+    playbook work for its author and fail for everyone else, and ansible-lint is what
+    surfaced it.
+    """
+    import re
+
+    requirements = ANSIBLE / "requirements.yml"
+    assert requirements.exists(), "no ansible/requirements.yml - collections are undeclared"
+    declared = set(re.findall(r"name:\s*([\w.]+)", requirements.read_text(encoding="utf-8")))
+    assert declared, "requirements.yml declares no collections"
+
+    # Collect every FQCN actually used across tasks, handlers and templates.
+    used: set[str] = set()
+    for path in list(ANSIBLE.rglob("*.yml")) + list(ANSIBLE.rglob("*.yaml")):
+        text = path.read_text(encoding="utf-8")
+        for fqcn in re.findall(r"^\s*([a-z_]+\.[a-z_]+\.[a-z_]+):", text, re.MULTILINE):
+            namespace = fqcn.split(".")[0]
+            if namespace == "ansible":
+                continue
+            used.add(".".join(fqcn.split(".")[:2]))
+
+    assert used, "no non-builtin collections detected; has the module style changed?"
+    missing = used - declared - {"ansible.builtin", "ansible.legacy"}
+    assert not missing, (
+        f"the playbook uses {sorted(missing)} but requirements.yml does not declare them. "
+        f"Installing Ansible with pip and no collections would fail at those tasks."
+    )
+
+
+def test_timezone_uses_the_canonical_module_name() -> None:
+    """The timezone module lives in community.general.
+
+    ``ansible.builtin.timezone`` resolves through an Ansible redirect, so it works -
+    but relying on that is relying on an implementation detail, and ansible-lint's
+    production profile flags it as non-canonical.
+    """
+    text = (ANSIBLE / "roles" / "base" / "tasks" / "main.yml").read_text(encoding="utf-8")
+    assert "community.general.timezone:" in text, "timezone should use its canonical FQCN"
+    assert "ansible.builtin.timezone:" not in text
+
+
+def test_no_absurdly_long_lines() -> None:
+    """ansible-lint's yaml[line-length] rule, enforced without installing it.
+
+    A 184-character Jinja pipeline is unreadable in a diff. The limit matches
+    ansible-lint's default warning threshold.
+    """
+    offenders: list[str] = []
+    for path in list(ANSIBLE.rglob("*.yml")) + list(ANSIBLE.rglob("*.yaml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if len(line) > 160:
+                offenders.append(f"{path.relative_to(ROOT)}:{number} ({len(line)} chars)")
+    assert not offenders, "lines exceeding 160 characters:\n  " + "\n  ".join(offenders)
+
+
+def test_ansible_lint_config_exists() -> None:
+    """Lint configuration is part of the repo, not a local preference.
+
+    Without it the production profile is not applied and the undeclared-collection
+    class of problem goes unnoticed again.
+    """
+    config = ROOT / ".ansible-lint"
+    assert config.exists(), "no .ansible-lint configuration"
+    text = config.read_text(encoding="utf-8")
+    assert "profile: production" in text, (
+        "the min profile only catches runtime breakage; production also catches "
+        "non-canonical module names"
+    )
+
+
 def test_ufw_ports_match_the_cloud_security_list() -> None:
     """Two firewalls that disagree produce a bug that looks like an application
     failure: the port is open on the host and closed at the cloud layer, so curl

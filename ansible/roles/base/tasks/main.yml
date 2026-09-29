@@ -29,7 +29,12 @@
     cache_valid_time: 3600
 
 - name: Set the system timezone to UTC
-  ansible.builtin.timezone:
+  # community.general, not ansible.builtin. The timezone module lives in
+  # community.general; `ansible.builtin.timezone` happens to resolve through an
+  # Ansible redirect, but relying on that is relying on an implementation detail and
+  # ansible-lint flags it as non-canonical. The collection is declared in
+  # ansible/requirements.yml.
+  community.general.timezone:
     name: "{{ system_timezone | default('UTC') }}"
 
 # UTC everywhere, deliberately. Latency in the benchmark and drift timestamps in

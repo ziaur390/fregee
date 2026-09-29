@@ -113,11 +113,11 @@ resource "local_file" "cloud_init" {
 }
 
 resource "multipass_instance" "mlserve" {
-  name      = var.vm_name
-  cpus      = var.cpus
-  memory    = "${var.memory}G"
-  disk      = var.disk
-  image     = var.image
+  name   = var.vm_name
+  cpus   = var.cpus
+  memory = "${var.memory}G"
+  disk   = var.disk
+  image  = var.image
 
   cloudinit_file = local_file.cloud_init.filename
 

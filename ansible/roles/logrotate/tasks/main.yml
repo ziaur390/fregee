@@ -47,4 +47,11 @@
 
 - name: Report what logrotate would do
   ansible.builtin.debug:
-    msg: "{{ logrotate_debug.stdout_lines | default([]) | select('search', 'log does not need rotating|considering') | list | first | default('logrotate parsed, nothing to rotate') }}"
+    # Kept as a multi-line expression rather than one long line: ansible-lint's
+    # yaml[line-length] rule catches exactly this, and a 184-character Jinja
+    # pipeline is unreadable in a diff anyway.
+    msg: >-
+      {{ logrotate_debug.stdout_lines | default([])
+         | select('search', 'log does not need rotating|considering')
+         | list | first
+         | default('logrotate parsed, nothing to rotate') }}

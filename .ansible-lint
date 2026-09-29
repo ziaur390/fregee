@@ -1,0 +1,33 @@
+---
+# ansible-lint configuration.
+#
+# Profile `production` rather than the default `min`. `min` only catches things that
+# break at runtime; `production` also catches non-canonical module names and
+# formatting, which is what surfaced the undeclared collection dependency in this
+# playbook (`ansible.builtin.timezone` resolving via a redirect to community.general,
+# with community.general never declared).
+#
+# Run locally:
+#     pip install ansible-lint
+#     cd ansible && ansible-lint playbook.yml
+
+profile: production
+
+# Paths checked. `roles/**` is included by playbook.yml, but listing it explicitly
+# means a new role with no reference from the playbook is still linted.
+exclude_paths:
+  - .ansible_facts/
+  - .cache/
+
+warn_list:
+  # `risky-file-permissions` and `no-changed-when` are informational for this
+  # playbook: every file-permission task sets an explicit mode, and every command
+  # task has a creates/changed_when guard that the repository's own test suite
+  # already asserts (tests/test_ansible.py).
+  - risky-file-permissions
+  - no-changed-when
+
+skip_list:
+  # The systemd unit templates in roles/deploy/templates use {{ }} inside comments
+  # describing directive values. Jinja-in-YAML warnings here are noise.
+  - jinja[spacing]

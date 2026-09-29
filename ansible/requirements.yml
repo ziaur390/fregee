@@ -1,0 +1,32 @@
+---
+# Ansible collection requirements.
+#
+# Install with:
+#     ansible-galaxy collection install -r ansible/requirements.yml
+#
+# WHY THIS FILE EXISTS
+#
+# `ansible-core` ships only `ansible.builtin`. It does NOT include `community.general`
+# or `ansible.posix`, and this playbook uses modules from both:
+#
+#     community.general.ufw        the ufw module is not in ansible-core
+#     ansible.posix.sysctl         kernel hardening
+#     ansible.posix.authorized_key ssh keys for the deploy group
+#
+# Without this file, a machine that installed Ansible via `pip install ansible-core`
+# fails at those tasks with "couldn't resolve module/action". It worked on the
+# machine this was developed on only because the Ubuntu `ansible` package bundles
+# both collections, which is exactly the kind of accidental dependency that makes a
+# playbook work for its author and fail for everyone else.
+#
+# ansible-lint found this. It flagged `ansible.builtin.timezone` as non-canonical -
+# that module actually lives in community.general and resolves through an Ansible
+# redirect - and chasing the flag is what surfaced the undeclared collection
+# dependency behind it.
+
+collections:
+  - name: community.general
+    version: ">=8.0.0"
+
+  - name: ansible.posix
+    version: ">=1.5.0"

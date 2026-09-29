@@ -33,12 +33,16 @@ backups/
 
 # Terraform
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
 crash.log
+# .terraform.lock.hcl is deliberately NOT ignored. HashiCorp recommends committing
+# it, and here it matters more than usual: the local environment depends on a
+# third-party provider (larstobi/multipass) whose resource schema is not guaranteed
+# stable. The lock file pins the exact version this configuration was validated
+# against, so a future provider release cannot silently invalidate that check.
 # Rendered by the local env from modules/cloud-init. Generated, not source.
 terraform/envs/*/cloud-init.yaml
 

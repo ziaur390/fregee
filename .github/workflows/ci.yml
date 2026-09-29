@@ -212,6 +212,70 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  infra:
+    name: infrastructure config
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ---------------------------------------------------------------- ansible
+      - name: Install Ansible and ansible-lint
+        run: pip install "ansible-core>=2.16" ansible-lint
+
+      - name: Install the collections the playbook declares
+        # This step is the point. ansible-core ships only ansible.builtin; the
+        # playbook uses community.general.ufw and ansible.posix.sysctl, so without
+        # this a pip-installed Ansible fails at those tasks with an unresolvable
+        # module. The requirements file was missing until ansible-lint surfaced it.
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: ansible-playbook --syntax-check
+        working-directory: ansible
+        run: ansible-playbook --syntax-check playbook.yml
+
+      - name: ansible-lint (production profile)
+        working-directory: ansible
+        run: ansible-lint --nocolor playbook.yml
+
+      - name: Assert the whole task graph resolves
+        working-directory: ansible
+        # --syntax-check proves the playbook parses; --list-tasks additionally proves
+        # every role loads and every task is reachable. A role whose tasks/main.yml
+        # is missing parses fine and does nothing at all.
+        run: |
+          count=$(ansible-playbook --list-tasks playbook.yml 2>/dev/null | grep -cE '^\s+\S.*TAGS:')
+          echo "resolved $count tasks"
+          if [ "$count" -lt 40 ]; then
+            echo "expected at least 40 tasks across the six roles, got $count"; exit 1
+          fi
+
+      # ---------------------------------------------------------------- terraform
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.2"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive terraform/
+
+      - name: terraform validate (local env)
+        working-directory: terraform/envs/local
+        run: |
+          terraform init -input=false -backend=false
+          terraform validate
+
+      - name: terraform validate (free-tier env)
+        working-directory: terraform/envs/free-tier
+        # `-backend=false` still downloads providers, which is what makes this a
+        # real schema check: it validates the OCI resources, security lists and
+        # dynamic blocks against the actual provider rather than against a guess.
+        run: |
+          terraform init -input=false -backend=false
+          terraform validate
+
   compose-validate:
     name: docker compose config
     runs-on: ubuntu-latest

@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from mlserve.config import ROOT
 
 TERRAFORM = ROOT / "terraform"
@@ -191,6 +193,44 @@ def test_module_inputs_match_module_outputs() -> None:
         assert not unknown, (
             f"terraform/envs/{env} passes undeclared inputs to the cloud-init module: "
             f"{sorted(unknown)}. Terraform ignores these silently."
+        )
+
+
+def test_terraform_lock_files_are_committed() -> None:
+    """Provider versions must be pinned in version control.
+
+    HashiCorp recommends committing ``.terraform.lock.hcl``, and here it matters more
+    than usual: the local environment depends on a **third-party** provider
+    (``larstobi/multipass``) whose resource schema is not guaranteed stable. The
+    configuration in this repo was validated against a specific provider version;
+    without the lock file, a future release could change that schema and silently
+    invalidate the check.
+    """
+    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    # Check for an actual ignore PATTERN, not the substring. The .gitignore explains
+    # in a comment why this file is not ignored, and a substring check matches that
+    # explanation - the same trap that bit the Dockerfile HEALTHCHECK assertion.
+    patterns = [
+        line.strip()
+        for line in ignore.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert ".terraform.lock.hcl" not in patterns, (
+        ".gitignore excludes the Terraform lock file, so provider versions are not pinned"
+    )
+
+    locks = list(TERRAFORM.rglob(".terraform.lock.hcl"))
+    if not locks:
+        pytest.skip("run `terraform init` in each env to generate the lock files")
+
+    for lock in locks:
+        assert 'provider "' in lock.read_text(encoding="utf-8"), f"{lock} pins no providers"
+
+    # The third-party provider is the one that actually needs pinning.
+    local_lock = TERRAFORM / "envs" / "local" / ".terraform.lock.hcl"
+    if local_lock.exists():
+        assert "larstobi/multipass" in local_lock.read_text(encoding="utf-8"), (
+            "the multipass provider is not pinned"
         )
 
 
