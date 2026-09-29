@@ -1,0 +1,54 @@
+# Dependabot configuration.
+#
+# This exists because of a real failure: the security workflow pinned
+# `aquasecurity/trivy-action@0.28.0` without the `v` prefix, the tag did not
+# resolve, and the job failed during "Set up job" before any step ran. It looked
+# like a security finding and was a typo.
+#
+# Pinned versions are the right choice — a moving tag means a supply-chain change
+# can alter your CI without a commit — but they rot silently. Dependabot is what
+# makes pinning safe: the pins stay exact and the updates arrive as reviewable
+# pull requests instead of surprises.
+
+version: 2
+
+updates:
+  # Action versions, which is where the above failure came from.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"
+    labels: ["dependencies", "ci"]
+    open-pull-requests-limit: 5
+
+  # Python dependencies. torch, onnxruntime and scipy all have security-relevant
+  # release cadences, and this is the file the pip-audit job reads.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+    labels: ["dependencies"]
+    open-pull-requests-limit: 5
+    groups:
+      # Patch and minor bumps arrive as one pull request rather than fifteen, so
+      # the review effort goes to the majors where a behaviour change is possible.
+      python-minor:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Base images. python:3.12-slim-bookworm and the monitoring images.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "docker"
+    labels: ["dependencies", "docker"]
+    open-pull-requests-limit: 5

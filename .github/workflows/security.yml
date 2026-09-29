@@ -57,7 +57,11 @@ jobs:
           tags: mlserve-ops:scan
           cache-from: type=gha
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        # Tag must carry the `v` prefix. An earlier revision pinned `0.28.0` without
+        # it, which does not resolve, so the job failed during "Set up job" before
+        # any step ran - the error was an Action-resolution failure, not a scan
+        # finding, and it looked like a security problem when it was a typo.
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: mlserve-ops:scan
           format: sarif
