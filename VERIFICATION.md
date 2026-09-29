@@ -268,9 +268,30 @@ that has only ever been observed to pass has not been tested:
 ## 7. Containerised stack
 
 ```console
-$ docker compose build
-Image mlserve-ops:local Built    (484 MB)
+$ docker compose build api
+Image mlserve-ops:local Built
 
+$ docker images mlserve-ops --format "{{.Tag}}  {{.Size}}"
+local  2.24GB
+
+$ docker run --rm --entrypoint sh mlserve-ops:local -c 'python --version; python -c "import torch; print(torch.__version__)"'
+Python 3.14.7
+torch 2.14.0+cpu
+```
+
+**Correction.** An earlier revision of this record claimed 484 MB. That figure is
+not reproducible and was wrong; the measured image is 2.24 GB. The breakdown, read
+from inside the image: a 1.5 GB virtualenv dominated by torch at 776 MB, plus scipy
+114 MB, sympy 77 MB, pandas 74 MB, onnxruntime 67 MB, scikit-learn 49 MB, numpy
+43 MB and matplotlib 37 MB, on a ~150 MB base.
+
+That is the real cost of this stack, and it is worth stating plainly rather than
+quoting a number that flattered it. The change that would make it dramatically
+worse is CUDA: the CPU wheel is 187 MB compressed, where the default PyPI torch
+wheel pulls roughly 2.5 GB of CUDA libraries this service never loads. Verified
+inside the image: **0 nvidia packages**.
+
+```console
 $ docker compose up -d --wait
 Container mlserve-node-exporter  Healthy
 Container mlserve-alert-sink     Healthy
