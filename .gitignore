@@ -25,6 +25,11 @@ htmlcov/
 artifacts/
 results/
 
+# Ad-hoc comparison dumps from manual A/B runs of the benchmark.
+# Never tracked: these are megabytes of raw measurements that a `tasks.py bench`
+# run regenerates, and committing them bloats the history for no reason.
+.benchcmp/
+
 # Databases + backups
 *.db
 *.sqlite
