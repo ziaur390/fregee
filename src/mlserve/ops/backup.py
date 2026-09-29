@@ -82,12 +82,23 @@ def create_backup(
     ``shutil.copy`` on a live SQLite file can capture a torn write - the page
     cache and any in-flight transaction are not part of the file yet, so the copy
     can be internally inconsistent while looking perfectly fine.
+
+    ``db.init_db`` runs first so a fresh checkout yields a valid (empty) database
+    instead of none. An empty log means the drill verifies 0 == 0, which is honest
+    but weak - run ``python tasks.py seed`` first to give it something real.
     """
     artifacts_dir = artifacts_dir or ARTIFACTS
     out_dir = out_dir or BACKUP_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     url = db_url or db.database_url()
+
+    # Create the schema if it does not exist, so a fresh checkout produces a valid
+    # database rather than no database at all. Without this the first backup on a
+    # clean clone has no database to record, and the restore verifier refuses -
+    # correctly, but with a message that reads like a code fault.
+    db.init_db(url)
+
     created = datetime.now(UTC)
     stamp = created.strftime("%Y%m%dT%H%M%SZ")
 

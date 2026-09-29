@@ -154,12 +154,19 @@ def t_pipeline() -> None:
 
 
 def t_verify() -> None:
-    """End-to-end verification: lint, tests, pipeline, bench, drift, backup."""
+    """End-to-end verification: lint, tests, pipeline, bench, drift, backup.
+
+    Seeds the request log before the backup drill. On a fresh clone the log is
+    empty, and the restore verifier correctly refuses to pass when there is no data
+    to verify - so without this the chain fails on a clean checkout and teaches
+    people to ignore the failure.
+    """
     t_lint()
     t_test()
     t_pipeline()
     t_bench()
     t_report()
+    t_seed()
     t_drift()
     t_backup()
     t_restore_verify()
@@ -175,6 +182,14 @@ def t_verify_all() -> None:
     t_up()
     t_smoke()
     t_down()
+
+
+def t_seed() -> None:
+    """Insert synthetic requests so the backup drill has rows to verify.
+
+    Idempotency is not wanted here - each call adds a fresh window of traffic.
+    """
+    mod("mlserve.ops.seed")
 
 
 def t_backup() -> None:
@@ -250,6 +265,7 @@ TARGETS = {
     "backup": t_backup,
     "restore-verify": t_restore_verify,
     "backup-list": t_backup_list,
+    "seed": t_seed,
     "up": t_up,
     "down": t_down,
     "nuke": t_nuke,

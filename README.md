@@ -164,15 +164,18 @@ batch-size and concurrency mix of real traffic — which the harness cannot know
 ## Reproduction and verification
 
 - **[VERIFICATION.md](VERIFICATION.md)** — the record of what was actually run, with
-  real output: 237 tests, the benchmark run, the backup-and-restore drill, the
+  real output: 248 tests, the benchmark run, the backup-and-restore drill, the
   containerised stack, and the alerting path exercised end to end. It also lists
-  what could *not* be checked on the build machine, and the sixteen defects found
+  what could *not* be checked on the build machine, and the seventeen defects found
   and fixed during verification.
 
 ```bash
-python tasks.py verify       # lint, tests, pipeline, bench, drift, backup+restore
+python tasks.py verify       # lint, tests, pipeline, bench, report, seed, drift, backup+restore
 python tasks.py verify-all   # the above plus the container stack and smoke test
 ```
+
+After a fresh clone, `artifacts/` and `results/` do not exist — they are generated
+and gitignored. `python tasks.py pipeline` rebuilds them in about a minute.
 
 ---
 
@@ -253,6 +256,18 @@ python tasks.py pipeline   # train -> export -> drift reference
 python tasks.py test       # unit tests, no docker needed
 python tasks.py serve      # http://localhost:8000/docs
 ```
+
+### Check everything works
+
+```bash
+python tasks.py verify       # lint, tests, pipeline, bench, report, seed, drift, backup+restore
+python tasks.py verify-all   # the above plus the container stack and the smoke test
+```
+
+`verify` seeds the request log before the backup drill. On a fresh clone the log is
+empty and the restore verifier **refuses to pass** — "a restore that verifies no
+data is not a restore" — so seeding is what makes the drill meaningful rather than
+ceremonial.
 
 ### A real VM (free)
 

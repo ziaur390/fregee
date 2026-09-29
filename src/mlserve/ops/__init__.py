@@ -10,6 +10,7 @@ from mlserve.ops.backup import (
     sha256_file,
     verify_restore,
 )
+from mlserve.ops.seed import seed_requests
 
 __all__ = [
     "BackupResult",
@@ -18,6 +19,7 @@ __all__ = [
     "create_backup",
     "latest_backup",
     "list_backups",
+    "seed_requests",
     "sha256_file",
     "verify_restore",
 ]

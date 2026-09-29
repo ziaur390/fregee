@@ -432,13 +432,63 @@ was executed.
 git clone https://github.com/ziaur390/fregee.git && cd fregee
 python tasks.py install
 python tasks.py pipeline      # train -> export -> drift reference
-python tasks.py test          # 237 tests
+python tasks.py test          # 248 tests
 python tasks.py bench         # ~66s, writes results/raw.csv
 python tasks.py report        # writes results/REPORT.md
+python tasks.py seed          # rows for the backup drill to verify
 python tasks.py backup && python tasks.py restore-verify
 python tasks.py up            # docker stack
 python tasks.py smoke
 ```
+
+### Verified on a genuinely fresh clone
+
+Everything above was re-run in a clean `git clone` into `C:\dev\fregee`, to confirm
+that nothing depends on state left behind on the build machine:
+
+```console
+$ python tasks.py lint
+All checks passed!
+
+$ python tasks.py test
+248 passed
+
+$ python tasks.py pipeline
+test accuracy   0.9741
+parity OK - all runtimes agree within tolerance
+reference built from 1257 training samples
+  features    64 (61 informative, 3 constant and excluded)
+
+$ python tasks.py seed
+seeded   500 requests (runtime=onnx-fp32)
+log now  500 rows (was 0)
+
+$ python tasks.py backup
+backup written  backups\mlserve-20260929T132920Z.tar.gz
+  rows          500
+
+$ python tasks.py restore-verify
+  [ok] manifest read: created 2026-09-29T13:29:20+00:00, 9 artifacts
+  [ok] artifact checksums match: 9 files
+  [ok] database checksum matches the manifest
+  [ok] row-count parity: 500 rows restored == 500 in manifest
+
+verified: 500 rows restored and matched the manifest
+
+$ python tasks.py verify      # full chain
+All checks passed!
+parity OK - all runtimes agree within tolerance
+wrote results\REPORT.md
+drift status    STABLE
+verified: 1000 rows restored and matched the manifest
+```
+
+**This is what found the seventeenth defect.** On the fresh clone, `verify` failed at
+the backup step: with an empty request log the manifest recorded no database, and
+the restore verifier correctly refused to pass. The guard was right and the first-run
+experience was wrong, so `tasks.py seed` was added. The fix was to give the drill real
+rows, not to weaken the verifier — and there is a test asserting the verifier still
+refuses when there is genuinely nothing to check.
 
 The config hash and seed are recorded in `results/run_meta.json` and printed in
 `results/REPORT.md`. If the working tree's `configs/model.yaml` or
