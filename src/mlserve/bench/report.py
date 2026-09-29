@@ -38,28 +38,44 @@ from mlserve.train import config_hash
 INTERPRETATION_PLACEHOLDER = """
 ## Interpretation
 
-> The numbers above were produced by `tasks.py report`. This section was not.
-> Fill each item in from the raw data; each one is a decision the harness cannot
-> make for you. Delete the marker when it is answered.
-
-- [ ] **Which runtime would you deploy, and at what batch size?** Name the cell.
-      A 1.35x throughput win at batch 64 is irrelevant if production traffic
-      arrives at batch 1 - say which operating point is real for this service.
-- [ ] **What does the int8 result actually show?** Compare its latency *and* its
-      accuracy interval against fp32. If the interval overlaps zero difference,
-      say so and do not claim a speedup. If it is faster with no measurable
-      accuracy loss, say what the size saving buys you (cold start? memory?).
-- [ ] **Where is the bottleneck - the runtime or the API?** Compare each inproc
-      row against its http counterpart. A gap that appears only in http is API
-      overhead, not inference cost, and the conclusion changes accordingly.
-- [ ] **Did concurrency help, and did you expect it to?** All runtimes are
-      single-threaded here, so the prediction is "no, it queues". Say whether the
-      data agreed, and if it did not, explain what that implies.
-- [ ] **Which table rows should not be trusted?** Check the tail-power column.
-      A p99 from fewer than 100 observations is not a tail measurement.
-- [ ] **What would you change in the experiment next time?** One concrete
-      change, justified by something the current data could not answer.
+> **This section is empty on purpose, and it is not written by the harness.**
+>
+> The numbers above were produced by `tasks.py report`. This section was not. A
+> benchmark report whose conclusion came from the same pipeline that produced the
+> table looks complete and is worthless: the reader cannot tell which claims were
+> tested and which were assumed.
+>
+> ### Where to write it
+>
+> Fill in **`docs/interpretation.md`** and run `python tasks.py report` again. It
+> is inlined here automatically once the TODO markers are gone.
+>
+> Do **not** edit `results/REPORT.md` directly. It is generated output, and the
+> next `report` run overwrites it — which is the footgun this indirection exists
+> to remove.
+>
+> The questions to answer are in `docs/interpretation.md`. They are the decisions
+> the harness cannot make for you: it can measure which runtime is faster in a
+> cell, but it cannot know which cell your traffic arrives at.
 """
+
+#: Where the human-authored interpretation lives. Kept outside results/ because
+#: results/ is regenerated.
+INTERPRETATION_SOURCE = ROOT / "docs" / "interpretation.md"
+
+
+def interpretation_section() -> tuple[str, bool]:
+    """Return (markdown, was_authored).
+
+    Reads ``docs/interpretation.md`` if it exists, so the prose survives a report
+    regeneration. Editing ``results/REPORT.md`` instead would work exactly once - a
+    trap worth engineering around rather than documenting.
+    """
+    if INTERPRETATION_SOURCE.exists():
+        body = INTERPRETATION_SOURCE.read_text(encoding="utf-8").strip()
+        if body and "TODO" not in body:
+            return f"## Interpretation\n\n{body}\n", True
+    return INTERPRETATION_PLACEHOLDER, False
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -331,6 +347,7 @@ def build_report() -> Path:
 
     plots = _plots(groups)
     main_table, power_table = _table(groups, cfg)
+    interpretation, authored = interpretation_section()
 
     body = f"""# Serving Runtime Benchmark - Reproducible Report
 
@@ -441,7 +458,7 @@ questions.
 
 {chr(10).join(f"![{name}]({name})" for name in plots)}
 
-{INTERPRETATION_PLACEHOLDER}
+{interpretation}
 
 ## Limitations
 
@@ -485,8 +502,13 @@ def main() -> int:
         f"{(RESULTS / 'concurrency.png').relative_to(ROOT)}"
     )
     print()
-    print("The Interpretation section is intentionally empty - it has TODO markers.")
-    print("Those are the conclusions the harness cannot draw for you.")
+    interpretation, authored = interpretation_section()
+    if authored:
+        print(f"Interpretation inlined from {INTERPRETATION_SOURCE.relative_to(ROOT)}")
+    else:
+        print("The Interpretation section is EMPTY - it still has TODO markers.")
+        print(f"Write your answers in {INTERPRETATION_SOURCE.relative_to(ROOT)} and re-run this,")
+        print("or they will be lost the next time this report is regenerated.")
     return 0
 
 

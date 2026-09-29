@@ -18,6 +18,8 @@ import numpy as np
 import pytest
 
 from mlserve.bench.stats import (
+    Percentile,
+    _bootstrap_draws,
     bootstrap_ci,
     bootstrap_ratio_ci,
     cohens_d,
@@ -211,6 +213,73 @@ def test_cohens_d_handles_zero_variance() -> None:
 
 def test_cohens_d_needs_two_points_per_group() -> None:
     assert math.isnan(cohens_d([1.0], [2.0, 3.0]))
+
+
+def test_vectorised_bootstrap_matches_the_loop_exactly() -> None:
+    """The fast path must not change any number.
+
+    `bootstrap_ci` originally resampled in a Python loop:
+
+        samples = np.array([statistic(arr[draw]) for draw in draws])
+
+    Across 48 cells and eight statistics per cell that is 768,000 individual
+    calls, and it made `tasks.py report` take 113 seconds. The resampled matrix is
+    now built in one allocation and reduced along axis 1.
+
+    This test pins the two implementations to each other, draw for draw. A
+    performance optimisation that quietly changes the reported interval would be
+    worse than the slowness it fixed, and it would be invisible - the numbers would
+    still look plausible.
+    """
+    rng = np.random.default_rng(12345)
+    values = rng.lognormal(mean=0.0, sigma=1.0, size=300)
+    resamples = 500
+
+    draws = _bootstrap_draws(values.size, resamples, seed=7)
+
+    # Mean: loop vs `arr[draws].mean(axis=1)`.
+    loop_mean = np.array([values[draw].mean() for draw in draws])
+    fast_mean = values[draws].mean(axis=1)
+    np.testing.assert_allclose(loop_mean, fast_mean, rtol=1e-12)
+
+    # Percentiles: loop vs `np.percentile(arr[draws], q, axis=1)`.
+    for q in (50, 95, 99):
+        loop_pct = np.array([np.percentile(values[draw], q) for draw in draws])
+        fast_pct = np.percentile(values[draws], q, axis=1)
+        np.testing.assert_allclose(loop_pct, fast_pct, rtol=1e-12)
+
+    # And end to end, through the public function.
+    slow = bootstrap_ci(values, lambda v: np.percentile(v, 95), resamples=resamples, seed=7)
+    fast = bootstrap_ci(values, Percentile(95), resamples=resamples, seed=7)
+    assert (slow.point, slow.low, slow.high) == (fast.point, fast.low, fast.high)
+
+
+def test_percentile_statistic_agrees_with_the_equivalent_lambda() -> None:
+    values = list(np.random.default_rng(3).normal(5, 2, size=200))
+    via_class = bootstrap_ci(values, Percentile(90), seed=1)
+    via_lambda = bootstrap_ci(values, lambda v: np.percentile(v, 90), seed=1)
+    assert via_class == via_lambda
+
+
+def test_bootstrap_of_a_realistic_cell_is_fast() -> None:
+    """A regression guard on the actual cost.
+
+    210 observations, 2000 resamples, four statistics - one benchmark cell. The
+    loop implementation took roughly 2.4 seconds for this; the vectorised one takes
+    milliseconds. The threshold is deliberately loose so it will not flake on a
+    loaded CI runner, while still failing by orders of magnitude if the loop ever
+    comes back.
+    """
+    import time
+
+    values = np.random.default_rng(0).lognormal(0, 1, size=210)
+    started = time.perf_counter()
+    summarize(values, resamples=2000)
+    elapsed = time.perf_counter() - started
+    assert elapsed < 1.0, (
+        f"summarize took {elapsed:.2f}s for one cell; the vectorised path should be "
+        f"milliseconds. 48 cells made `tasks.py report` take 113 seconds."
+    )
 
 
 # ------------------------------------------------------------------ tail power

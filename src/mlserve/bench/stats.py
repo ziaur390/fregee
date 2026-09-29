@@ -61,6 +61,21 @@ def mean(values: Sequence[float]) -> float:
     return float(arr.mean())
 
 
+@dataclass(frozen=True)
+class Percentile:
+    """A percentile as a callable, so it can be bootstrapped vectorised.
+
+    Exists so :func:`bootstrap_ci` can recognise a percentile and reduce the whole
+    resampled matrix at once. Passing ``lambda v: np.percentile(v, q)`` still works
+    and still gives the same answer - it just takes the slow path.
+    """
+
+    q: float
+
+    def __call__(self, values: np.ndarray) -> float:
+        return float(np.percentile(values, self.q))
+
+
 def bootstrap_ci(
     values: Sequence[float],
     statistic: Callable[[np.ndarray], float] = np.mean,
@@ -73,8 +88,22 @@ def bootstrap_ci(
 
     A percentile bootstrap rather than a normal approximation because latency is
     right-skewed: the mean sits above the median and the tail is long, so a
-    symmetric interval would place a lower bound somewhere it cannot physically
-    be and understate the upper one.
+    symmetric interval would place a lower bound somewhere it cannot physically be
+    and understate the upper one.
+
+    **Vectorised for the two statistics this repository actually uses.** The first
+    implementation resampled in a Python loop::
+
+        samples = np.array([statistic(arr[draw]) for draw in draws])
+
+    With 2000 resamples across 48 cells and eight statistics per cell that is
+    768,000 individual calls, and it made `tasks.py report` take 113 seconds. The
+    resampled matrix is now built in one allocation and reduced along axis 1, which
+    is roughly two orders of magnitude faster and produces identical numbers -
+    pinned draw-for-draw by `test_vectorised_bootstrap_matches_the_loop_exactly`.
+
+    An arbitrary callable still works and still falls back to the loop, so the public
+    API is unchanged and only the hot path is different.
     """
     arr = np.asarray(values, dtype=float)
     if arr.size == 0:
@@ -83,13 +112,27 @@ def bootstrap_ci(
         value = float(statistic(arr))
         return Interval(value, value, value, 1, 1.0 - alpha)
 
-    rng = np.random.default_rng(seed)
-    n = arr.size
-    draws = rng.integers(0, n, size=(resamples, n))
-    samples = np.array([statistic(arr[draw]) for draw in draws], dtype=float)
+    draws = _bootstrap_draws(arr.size, resamples, seed)
+
+    if statistic is np.mean:
+        samples = arr[draws].mean(axis=1)
+    elif isinstance(statistic, Percentile):
+        samples = np.percentile(arr[draws], statistic.q, axis=1)
+    else:
+        samples = np.array([statistic(arr[draw]) for draw in draws], dtype=float)
 
     low, high = np.percentile(samples, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-    return Interval(float(statistic(arr)), float(low), float(high), n, 1.0 - alpha)
+    return Interval(float(statistic(arr)), float(low), float(high), arr.size, 1.0 - alpha)
+
+
+def _bootstrap_draws(n: int, resamples: int, seed: int) -> np.ndarray:
+    """Resample index matrix, shape (resamples, n).
+
+    Exposed (underscore-prefixed) so the test can compare the loop and the vectorised
+    reduction on identical draws. Without that the test could only assert closeness,
+    and a real divergence could hide inside bootstrap noise.
+    """
+    return np.random.default_rng(seed).integers(0, n, size=(resamples, n))
 
 
 def bootstrap_ratio_ci(
@@ -172,19 +215,18 @@ def cohens_d(a: Sequence[float], b: Sequence[float]) -> float:
 def summarize(
     values: Sequence[float], *, resamples: int = 2000, alpha: float = 0.05, seed: int = 0
 ):
-    """The four statistics reported for every cell, each with a CI."""
+    """The four statistics reported for every cell, each with a CI.
+
+    Uses :class:`Percentile` rather than a lambda so the bootstrap takes the
+    vectorised path. With lambdas this function alone accounted for 113 seconds of
+    `tasks.py report`.
+    """
     arr = np.asarray(values, dtype=float)
     return {
         "mean": bootstrap_ci(arr, np.mean, resamples=resamples, alpha=alpha, seed=seed),
-        "p50": bootstrap_ci(
-            arr, lambda v: np.percentile(v, 50), resamples=resamples, alpha=alpha, seed=seed
-        ),
-        "p95": bootstrap_ci(
-            arr, lambda v: np.percentile(v, 95), resamples=resamples, alpha=alpha, seed=seed
-        ),
-        "p99": bootstrap_ci(
-            arr, lambda v: np.percentile(v, 99), resamples=resamples, alpha=alpha, seed=seed
-        ),
+        "p50": bootstrap_ci(arr, Percentile(50), resamples=resamples, alpha=alpha, seed=seed),
+        "p95": bootstrap_ci(arr, Percentile(95), resamples=resamples, alpha=alpha, seed=seed),
+        "p99": bootstrap_ci(arr, Percentile(99), resamples=resamples, alpha=alpha, seed=seed),
     }
 
 

@@ -2,10 +2,12 @@
 
 from mlserve.bench.stats import (
     Interval,
+    Percentile,
     bootstrap_ci,
     bootstrap_ratio_ci,
     cohens_d,
     mean,
+    observations_needed,
     percentile,
     summarize,
     tail_is_underpowered,
@@ -14,10 +16,12 @@ from mlserve.bench.stats import (
 
 __all__ = [
     "Interval",
+    "Percentile",
     "bootstrap_ci",
     "bootstrap_ratio_ci",
     "cohens_d",
     "mean",
+    "observations_needed",
     "percentile",
     "summarize",
     "tail_is_underpowered",
