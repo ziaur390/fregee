@@ -429,7 +429,7 @@ was executed.
 ## Reproducing this record
 
 ```bash
-git clone https://github.com/ziaur390/fregee.git && cd fregee
+git clone https://github.com/ziaur390/mlserve-ops.git && cd mlserve-ops
 python tasks.py install
 python tasks.py pipeline      # train -> export -> drift reference
 python tasks.py test          # 248 tests
@@ -443,7 +443,7 @@ python tasks.py smoke
 
 ### Verified on a genuinely fresh clone
 
-Everything above was re-run in a clean `git clone` into `C:\dev\fregee`, to confirm
+Everything above was re-run in a clean `git clone` into `C:\dev\mlserve-ops`, to confirm
 that nothing depends on state left behind on the build machine:
 
 ```console

@@ -26,7 +26,7 @@
     app_user: mlserve
     app_group: mlserve
     app_root: /opt/mlserve-ops
-    app_repo: "{{ mlserve_repo | default('https://github.com/ziaur390/fregee.git') }}"
+    app_repo: "{{ mlserve_repo | default('https://github.com/ziaur390/mlserve-ops.git') }}"
     app_version: "{{ mlserve_version | default('main') }}"
     data_dir: /var/lib/mlserve
     artifact_dir: /var/lib/mlserve/artifacts

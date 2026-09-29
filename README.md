@@ -18,7 +18,7 @@ Built to answer four questions with evidence rather than assertion:
 ## The one-command demo
 
 ```bash
-git clone https://github.com/ziaur390/fregee.git && cd fregee
+git clone https://github.com/ziaur390/mlserve-ops.git && cd mlserve-ops
 python tasks.py up        # train -> export -> bring up api, prometheus, alertmanager, grafana
 python tasks.py smoke     # assert every endpoint and the prometheus target actually answer
 python tasks.py bench     # run the experiment matrix

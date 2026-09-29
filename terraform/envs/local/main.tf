@@ -88,7 +88,7 @@ variable "ssh_authorized_keys" {
 variable "mlserve_repo" {
   description = "Repository the Ansible deploy role checks out."
   type        = string
-  default     = "https://github.com/ziaur390/fregee.git"
+  default     = "https://github.com/ziaur390/mlserve-ops.git"
 }
 
 variable "mlserve_version" {

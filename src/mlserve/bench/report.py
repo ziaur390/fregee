@@ -485,7 +485,7 @@ Every number in this file came from that CSV. Nothing was entered by hand.
 ## Reproducing this exact report
 
 ```bash
-git clone <this repo> && cd fregee
+git clone <this repo> && cd mlserve-ops
 python tasks.py install
 python tasks.py pipeline     # train -> export -> drift reference
 python tasks.py bench        # writes results/raw.csv
