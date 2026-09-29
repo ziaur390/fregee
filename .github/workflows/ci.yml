@@ -224,7 +224,11 @@ jobs:
 
       # ---------------------------------------------------------------- ansible
       - name: Install Ansible and ansible-lint
-        run: pip install "ansible-core>=2.16" ansible-lint
+        # Floor, not an exact pin. ansible-lint 26 enforces var-naming[role-prefix] at
+        # the production profile; the 6.17 release available from Ubuntu's archive
+        # does not, and that gap let eleven violations reach CI unnoticed. Stating a
+        # floor keeps the modern rules active while Dependabot handles the bumps.
+        run: pip install "ansible-core>=2.16" "ansible-lint>=26.0"
 
       - name: Install the collections the playbook declares
         # This step is the point. ansible-core ships only ansible.builtin; the

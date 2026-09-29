@@ -1,5 +1,5 @@
 ---
-# deploy role - checkout, virtualenv, model build, systemd units.
+# deploy role - deploy_checkout, virtualenv, model build, systemd units.
 #
 # Separate from the provisioning roles on purpose: this is the only role that
 # changes when a new version ships, so a deploy does not re-run apt or firewall
@@ -17,7 +17,7 @@
     version: "{{ app_version }}"
     force: true
     accept_hostkey: true
-  register: checkout
+  register: deploy_checkout
   notify: reload systemd
 
 - name: Ensure the log and run directories exist
@@ -46,7 +46,7 @@
     requirements: "{{ app_root }}/requirements.txt"
     virtualenv: "{{ app_root }}/.venv"
     state: present
-  register: pip_result
+  register: deploy_pip_result
   notify: restart api and wait
   # `ansible.builtin.pip` with requirements is not a shell task, so it reports
   # changed only when something is actually installed or upgraded.
@@ -63,7 +63,7 @@
 
 - name: Build the models and the drift reference
   ansible.builtin.command:
-    cmd: "{{ app_root }}/.venv/bin/python tasks.py pipeline"
+    cmd: "{{ app_root }}/.venv/bin/python tasks.py deploy_pipeline"
     chdir: "{{ app_root }}"
   environment:
     MLSERVE_ARTIFACTS: "{{ artifact_dir }}"
@@ -71,9 +71,9 @@
     MLSERVE_TORCH_THREADS: "1"
   args:
     creates: "{{ artifact_dir }}/reference.npz"
-  register: pipeline
+  register: deploy_pipeline
   notify: restart api and wait
-  # Guarded on reference.npz, the last artefact the pipeline writes, so the build
+  # Guarded on reference.npz, the last artefact the deploy_pipeline writes, so the build
   # runs once. Delete that file to force a rebuild.
 
 - name: Ensure the artefact tree is owned by the service account
@@ -139,21 +139,21 @@
 
 - name: Wait for readiness
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ api_port }}/readyz"
+    url: "http://127.0.0.1:{{ api_port }}/deploy_readyz"
     status_code: 200
     timeout: 5
-  register: readyz
-  until: readyz.status == 200
+  register: deploy_readyz
+  until: deploy_readyz.status == 200
   retries: 30
   delay: 2
   changed_when: false
 
 - name: Check the api liveness endpoint
   ansible.builtin.uri:
-    url: "http://127.0.0.1:{{ api_port }}/healthz"
+    url: "http://127.0.0.1:{{ api_port }}/deploy_healthz"
     status_code: 200
     return_content: true
-  register: healthz
+  register: deploy_healthz
   changed_when: false
 
 - name: Prove a prediction works end to end
@@ -172,7 +172,7 @@
         body = json.loads(urllib.request.urlopen(request, timeout=10).read())
         print('runtime=%s class=%s latency_ms=%.3f' % (
             body['runtime'], body['predictions'][0]['predicted_class'], body['latency_ms']))
-  register: smoke
+  register: deploy_smoke
   changed_when: false
   # Runs real Python from the deployed virtualenv rather than a templated JSON
   # body. Two reasons: Jinja has no list-repetition operator, so 64 copies of 0.5
@@ -183,9 +183,9 @@
 - name: Report what the deploy did
   ansible.builtin.debug:
     msg:
-      - "checked out:     {{ app_version }} ({{ checkout.after[:8] if checkout.after is defined else 'unchanged' }})"
-      - "dependencies:    {{ 'changed' if pip_result.changed else 'already satisfied' }}"
-      - "model build:     {{ 'ran' if pipeline.changed else 'already present' }}"
-      - "readiness:       {{ readyz.json.status | default('ok') }}"
-      - "liveness:        {{ healthz.json.version | default('?') }}"
-      - "inference:       {{ smoke.stdout | default('not run') }}"
+      - "checked out:     {{ app_version }} ({{ deploy_checkout.after[:8] if deploy_checkout.after is defined else 'unchanged' }})"
+      - "dependencies:    {{ 'changed' if deploy_pip_result.changed else 'already satisfied' }}"
+      - "model build:     {{ 'ran' if deploy_pipeline.changed else 'already present' }}"
+      - "readiness:       {{ deploy_readyz.json.status | default('ok') }}"
+      - "liveness:        {{ deploy_healthz.json.version | default('?') }}"
+      - "inference:       {{ deploy_smoke.stdout | default('not run') }}"

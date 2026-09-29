@@ -15,8 +15,8 @@
       # Managed by Ansible (mlserve-ops logrotate role).
       {{ app_root }}/logs/*.log {
           daily
-          rotate {{ log_rotate_count }}
-          size {{ log_rotate_size }}
+          rotate {{ logrotate_count }}
+          size {{ logrotate_size }}
           compress
           delaycompress
           missingok

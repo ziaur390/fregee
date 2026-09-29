@@ -68,8 +68,8 @@ ReadOnlyPaths={{ artifact_dir }}
 # A model service that runs away should be killed and restarted rather than
 # starving the host. Tune MemoryMax for the real model; 1G is generous for this
 # one and deliberately not "unlimited".
-MemoryMax={{ api_memory_max }}
-CPUQuota={{ api_cpu_quota }}
+MemoryMax={{ deploy_api_memory_max }}
+CPUQuota={{ deploy_api_cpu_quota }}
 TasksMax=256
 
 # --- observability ----------------------------------------------------------

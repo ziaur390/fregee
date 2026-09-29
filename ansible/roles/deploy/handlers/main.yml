@@ -15,8 +15,8 @@
     url: "http://127.0.0.1:{{ api_port }}/readyz"
     status_code: 200
     timeout: 5
-  register: readyz_after_restart
-  until: readyz_after_restart.status == 200
+  register: deploy_readyz_after_restart
+  until: deploy_readyz_after_restart.status == 200
   retries: 30
   delay: 2
   changed_when: false

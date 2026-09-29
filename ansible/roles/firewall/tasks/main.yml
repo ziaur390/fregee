@@ -50,10 +50,10 @@
 
 - name: Verify the resulting ruleset
   ansible.builtin.command: ufw status verbose
-  register: ufw_status
+  register: firewall_ufw_status
   changed_when: false
-  failed_when: "'Status: active' not in ufw_status.stdout"
+  failed_when: "'Status: active' not in firewall_ufw_status.stdout"
 
 - name: Show the active ruleset
   ansible.builtin.debug:
-    var: ufw_status.stdout_lines
+    var: firewall_ufw_status.stdout_lines

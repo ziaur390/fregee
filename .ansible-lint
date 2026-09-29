@@ -2,13 +2,26 @@
 # ansible-lint configuration.
 #
 # Profile `production` rather than the default `min`. `min` only catches things that
-# break at runtime; `production` also catches non-canonical module names and
-# formatting, which is what surfaced the undeclared collection dependency in this
-# playbook (`ansible.builtin.timezone` resolving via a redirect to community.general,
-# with community.general never declared).
+# break at runtime; `production` also catches non-canonical module names and variable
+# naming, which is what surfaced the undeclared collection dependency in this playbook
+# (`ansible.builtin.timezone` resolving via a redirect to community.general, with
+# community.general never declared).
+#
+# USE A CURRENT ansible-lint. This file is only as good as the version reading it.
+#
+#   pip install "ansible-lint>=26.0"     # or: pipx install ansible-lint
+#
+# Why that is stated so bluntly: this repo was developed against ansible-lint 6.17.2,
+# which is what Ubuntu's archive ships. CI installs the current release, 26.x, and the
+# newer version enforces var-naming[role-prefix] at the production profile. Eleven
+# violations - unprefixed register targets and role defaults - were sitting in the
+# playbook in a state that passed locally and failed in CI.
+#
+# The lesson is not "pin the linter" but "do not trust a stale one". The rule is now
+# also re-implemented in tests/test_ansible.py so it is checked without ansible-lint
+# installed at all, and CI states >=26.0 as a floor.
 #
 # Run locally:
-#     pip install ansible-lint
 #     cd ansible && ansible-lint playbook.yml
 
 profile: production

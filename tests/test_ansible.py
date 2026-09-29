@@ -390,6 +390,77 @@ def test_ansible_lint_config_exists() -> None:
     )
 
 
+def test_role_variables_are_prefixed_with_the_role_name() -> None:
+    """ansible-lint's var-naming[role-prefix] rule, enforced without installing it.
+
+    Variables defined inside a role - ``register`` targets and ``defaults``/``vars``
+    keys - must be prefixed with the role name. Two roles that both register a
+    variable called ``result`` collide silently and the second one wins, which is a
+    genuinely nasty class of bug: the playbook succeeds and uses the wrong value.
+
+    This test exists because CI caught it and the local tooling did not. The
+    development machine had ansible-lint 6.17.2 from Ubuntu's archive; CI installs
+    the current release, 26.x, which enforces the rule at the production profile.
+    Eleven violations were sitting in the playbook unnoticed. The rule is therefore
+    re-implemented here in a form that needs no ansible-lint at all, so the check
+    cannot rot with the local toolchain again.
+    """
+    import re
+
+    role_dirs = sorted(p for p in (ANSIBLE / "roles").iterdir() if p.is_dir())
+    assert role_dirs, "no roles found"
+
+    offenders: list[str] = []
+    for role in role_dirs:
+        prefix = role.name.replace("-", "_") + "_"
+
+        for path in list(role.rglob("tasks/*.yml")) + list(role.rglob("handlers/*.yml")):
+            text = path.read_text(encoding="utf-8")
+            for name in re.findall(r"^\s*register:\s*([A-Za-z_]\w*)", text, re.MULTILINE):
+                if not name.startswith(prefix):
+                    offenders.append(
+                        f"{path.relative_to(ROOT)}: register '{name}' should be '{prefix}{name}'"
+                    )
+
+        for name in ("defaults", "vars"):
+            path = role / name / "main.yml"
+            if not path.exists():
+                continue
+            keys = re.findall(r"^([a-zA-Z_]\w*):", path.read_text(encoding="utf-8"), re.MULTILINE)
+            for key in keys:
+                if not key.startswith(prefix):
+                    offenders.append(
+                        f"{path.relative_to(ROOT)}: var '{key}' should be '{prefix}{key}'"
+                    )
+
+    assert not offenders, (
+        "role-local variables must be prefixed with the role name, or two roles can "
+        "silently collide:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_templates_reference_the_prefixed_variables() -> None:
+    """A rename that misses a template is a runtime failure, not a lint failure.
+
+    Renaming ``api_memory_max`` to ``deploy_api_memory_max`` in defaults without
+    updating ``mlserve-api.service.j2`` leaves the unit file with an undefined
+    variable, which systemd renders as an empty ``MemoryMax=`` directive - a silent
+    loss of the resource limit rather than a visible error.
+    """
+    import re
+
+    template = ANSIBLE / "roles" / "deploy" / "templates" / "mlserve-api.service.j2"
+    text = template.read_text(encoding="utf-8")
+
+    for var in ("deploy_api_memory_max", "deploy_api_cpu_quota"):
+        assert f"{{{{ {var} }}}}" in text, f"{template.name} does not use {var}"
+    for stale in ("api_memory_max", "api_cpu_quota"):
+        # The prefixed names contain the short ones, so match the bare form only.
+        assert not re.search(rf"\{{{{\s*{stale}\s*\}}\}}", text), (
+            f"{template.name} still references the unprefixed {stale}"
+        )
+
+
 def test_ufw_ports_match_the_cloud_security_list() -> None:
     """Two firewalls that disagree produce a bug that looks like an application
     failure: the port is open on the host and closed at the cloud layer, so curl
