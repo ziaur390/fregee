@@ -235,6 +235,55 @@ def t_smoke() -> None:
     mod("tests.smoke")
 
 
+def t_guide() -> None:
+    """Assemble docs/guide fragments into one HTML file and render the PDF.
+
+    The guide is written as twelve small fragments rather than one enormous HTML
+    file, because a 3,300-line document is painful to edit. This concatenates them
+    in order and then prints to PDF with a headless browser.
+
+    The browser is required rather than a PDF library on purpose: the guide leans on
+    CSS that only a real rendering engine implements - page-break rules, repeating
+    table headers, print margins. reportlab and fpdf2 would need every layout rule
+    reimplemented by hand.
+    """
+    guide_dir = ROOT / "docs" / "guide"
+    parts = sorted(guide_dir.glob("[01]*.html"))
+    if not parts:
+        raise SystemExit(f"no guide fragments found in {guide_dir}")
+
+    combined = guide_dir / "mlserve-ops-guide.html"
+    combined.write_text("".join(p.read_text(encoding="utf-8") for p in parts), encoding="utf-8")
+    print(f"assembled {len(parts)} fragments -> {combined.relative_to(ROOT)}")
+
+    browsers = (
+        Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+        Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        *(Path(p) for p in (shutil.which("msedge"), shutil.which("chrome")) if p),
+    )
+    browser = next((b for b in browsers if b.exists()), None)
+    if browser is None:
+        print("no headless browser found; open the HTML file and print it to PDF")
+        return
+
+    pdf = guide_dir / "mlserve-ops-guide.pdf"
+    run(
+        str(browser),
+        "--headless",
+        "--disable-gpu",
+        "--no-sandbox",
+        f"--print-to-pdf={pdf}",
+        "--no-pdf-header-footer",
+        "--print-to-pdf-no-header",
+        f"file:///{combined.as_posix()}",
+    )
+    # The browser writes the file as a side effect and prints progress to stderr, so
+    # a successful exit code alone is not proof. Check the artifact instead.
+    if not pdf.exists() or pdf.stat().st_size < 100_000:
+        raise SystemExit(f"pdf render produced nothing usable at {pdf}")
+    print(f"wrote {pdf.relative_to(ROOT)} ({pdf.stat().st_size / 1_048_576:.1f} MB)")
+
+
 def t_clean() -> None:
     """Remove generated artifacts, results and caches."""
     for path in ("artifacts", "results", "backups", ".pytest_cache", ".ruff_cache"):
@@ -271,6 +320,7 @@ TARGETS = {
     "nuke": t_nuke,
     "logs": t_logs,
     "smoke": t_smoke,
+    "guide": t_guide,
     "clean": t_clean,
 }
 

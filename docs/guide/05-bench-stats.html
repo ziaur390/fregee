@@ -1,0 +1,339 @@
+<!-- ======================================================== BENCHMARK -->
+<div class="part-start">
+<span class="part-num">PART 6</span>
+<h1 class="part">The race with a stopwatch: benchmarking</h1>
+
+<p class="lede">Measuring how fast software runs sounds like the easiest job in computing. It is one of the hardest to do honestly. This part explains what the benchmark does, and every decision exists because a simpler version produced a wrong answer.</p>
+
+<h2>What is it?</h2>
+
+<p>A program that runs the model thousands of times in carefully controlled ways, records how long every single call took, and writes the results to a file so they can be analysed and re-checked.</p>
+
+<div class="kpi">
+  <div><span class="n">48</span><span class="l">configurations tested</span></div>
+  <div><span class="n">1,344</span><span class="l">timed calls per run</span></div>
+  <div><span class="n">2</span><span class="l">different methods compared</span></div>
+  <div><span class="n">3</span><span class="l">repeats of everything</span></div>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>You have three ways to run your model. You must pick one for production. Somebody will ask you why.</p>
+  <p style="margin-top:2mm">You could time one request of each on your laptop and pick the winner. But then: was your laptop busy? Was the first one penalised for warming up a cache? Was the difference real, or just one lucky run? Would it still be true tomorrow?</p>
+  <p style="margin-top:2mm">Without a real harness you have an opinion. With one you have evidence. And crucially, the evidence is <em>checkable by someone else</em> — which is the difference between a claim and a measurement.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>What gets measured</h3>
+
+<p>The benchmark runs every combination of these four things — 2 × 3 × 4 × 2 = 48 configurations:</p>
+
+<table><thead><tr><th style="width:34mm">Setting</th><th style="width:44mm">Options</th><th>Why it is a variable</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Mode</strong></td>
+    <td><code>inproc</code>, <code>http</code></td>
+    <td>Do we time just the model, or the whole round trip through the API? Both, because they answer different questions.</td>
+  </tr>
+  <tr>
+    <td><strong>Runtime</strong></td>
+    <td>torchscript, onnx-fp32, onnx-int8</td>
+    <td>The main question: which is faster?</td>
+  </tr>
+  <tr>
+    <td><strong>Batch size</strong></td>
+    <td>1, 8, 32, 64</td>
+    <td>Does handling 64 at once beat handling them one at a time?</td>
+  </tr>
+  <tr>
+    <td><strong>Concurrency</strong></td>
+    <td>1, 4</td>
+    <td>Does sending several requests at the same time help, or just make everything slower?</td>
+  </tr>
+</tbody></table>
+
+<h3>Two ways of measuring, and why both are needed</h3>
+
+<figure>
+<svg viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="10">
+  <defs><marker id="ar4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <!-- inproc -->
+  <text x="14" y="16" font-weight="700" font-size="11" fill="#1e5fb4">inproc  —  measure ONLY the model</text>
+  <rect x="14" y="28" width="110" height="42" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="69" y="46" text-anchor="middle" font-weight="700" fill="#1e5fb4">stopwatch</text>
+  <text x="69" y="60" text-anchor="middle" font-size="9" fill="#46505f">starts here</text>
+
+  <path d="M124,49 L156,49" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="158" y="28" width="130" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="223" y="52" text-anchor="middle" font-size="9" fill="#46505f">the runtime thinks</text>
+
+  <path d="M288,49 L320,49" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="322" y="28" width="110" height="42" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="377" y="46" text-anchor="middle" font-weight="700" fill="#1e5fb4">stopwatch</text>
+  <text x="377" y="60" text-anchor="middle" font-size="9" fill="#46505f">stops here</text>
+
+  <text x="452" y="46" font-size="9" fill="#46505f">Typical: 0.03 – 0.7 ms</text>
+  <text x="452" y="60" font-size="9" fill="#a3244b" font-weight="700">So fast that noise dominates</text>
+
+  <line x1="14" y1="86" x2="686" y2="86" stroke="#d7dde5" stroke-width="1"/>
+
+  <!-- http -->
+  <text x="14" y="106" font-weight="700" font-size="11" fill="#14663f">http  —  measure the WHOLE round trip</text>
+
+  <rect x="14" y="118" width="92" height="42" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.4"/>
+  <text x="60" y="136" text-anchor="middle" font-weight="700" fill="#14663f">start</text>
+  <text x="60" y="150" text-anchor="middle" font-size="9" fill="#46505f">timer on</text>
+  <path d="M106,139 L128,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="130" y="118" width="76" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="168" y="136" text-anchor="middle" font-size="8.5" fill="#46505f">turn into</text>
+  <text x="168" y="148" text-anchor="middle" font-size="8.5" fill="#46505f">text (JSON)</text>
+  <path d="M206,139 L228,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="230" y="118" width="76" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="268" y="136" text-anchor="middle" font-size="8.5" fill="#46505f">over the</text>
+  <text x="268" y="148" text-anchor="middle" font-size="8.5" fill="#46505f">network</text>
+  <path d="M306,139 L328,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="330" y="118" width="76" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="368" y="136" text-anchor="middle" font-size="8.5" fill="#46505f">check it is</text>
+  <text x="368" y="148" text-anchor="middle" font-size="8.5" fill="#46505f">valid</text>
+  <path d="M406,139 L428,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="430" y="118" width="72" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="466" y="136" text-anchor="middle" font-size="8.5" fill="#46505f">the runtime</text>
+  <text x="466" y="148" text-anchor="middle" font-size="8.5" fill="#46505f">thinks</text>
+  <path d="M502,139 L524,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="526" y="118" width="76" height="42" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="564" y="136" text-anchor="middle" font-size="8.5" fill="#46505f">answer back</text>
+  <text x="564" y="148" text-anchor="middle" font-size="8.5" fill="#46505f">as text</text>
+  <path d="M602,139 L620,139" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar4)"/>
+
+  <rect x="622" y="118" width="64" height="42" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.4"/>
+  <text x="654" y="136" text-anchor="middle" font-weight="700" fill="#14663f">stop</text>
+  <text x="654" y="150" text-anchor="middle" font-size="9" fill="#46505f">timer off</text>
+
+  <text x="14" y="182" font-size="9" fill="#46505f">Typical: 2 – 25 ms</text>
+  <text x="14" y="196" font-size="9" fill="#14663f" font-weight="700">Big enough that noise matters less — so this is the trustworthy mode</text>
+</svg>
+<figcaption>The same request, measured two ways. The difference between them is the API's own cost, and you can only see it by measuring both.</figcaption>
+</figure>
+
+<div class="box why">
+  <span class="box-title">Why we needed both modes</span>
+  <p>If you <em>only</em> measured <code>inproc</code>, you would know which engine is fastest but not what your customers experience. If you <em>only</em> measured <code>http</code>, a difference could come from the model or from the API layer — and you could not tell which.</p>
+  <p style="margin-top:2mm">Measuring both means a difference that appears in one mode but not the other can be <strong>attributed</strong>. That is the difference between "it is slower" and "the API layer is slower, the model is the same."</p>
+</div>
+
+<h3>Reproducibility: the property everything else depends on</h3>
+
+<p>Five separate things are pinned so that a rerun is genuinely a rerun:</p>
+
+<table><thead><tr><th style="width:36mm">What is pinned</th><th>What it prevents</th></tr></thead><tbody>
+  <tr><td>The random seed</td><td>Different pictures being timed each run.</td></tr>
+  <tr><td>Per-configuration seeds from SHA-256</td><td>Python's per-process random hashing, which silently made each run different. <em>This was a real bug.</em></td></tr>
+  <tr><td>Thread counts fixed at 1</td><td>Results that depend on how many processor cores your machine happens to have.</td></tr>
+  <tr><td>Warm-up calls, discarded</td><td>Measuring the one-time cost of loading a model and calling it "inference speed."</td></tr>
+  <tr><td>The server started fresh by the benchmark</td><td>Results depending on a long-running process with different memory layout.</td></tr>
+</tbody></table>
+
+<div class="box warn">
+  <span class="box-title">Warm-up: the easiest mistake to make</span>
+  <p>The very first time you run a model, the runtime does a lot of one-time setup: building internal graph structures, allocating memory, deciding how to schedule the work. The second call reuses all of it.</p>
+  <p style="margin-top:2mm">If you include that first call in your average, you are mostly measuring start-up cost and calling it speed. So the benchmark runs warm-up calls first and <strong>throws them away</strong>. It measures the steady state, which is what production actually experiences after the first request.</p>
+</div>
+
+<h3>One call is one measurement, no matter how big</h3>
+
+<p>A subtle detail with a big effect. When a batch of 64 pictures is sent in one request, that counts as <strong>one</strong> latency measurement — not 64.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You order 64 pizzas in one phone call. The call takes 3 minutes. That does not mean each pizza took 3 minutes! If you counted it that way, ordering in bulk would look 64 times <em>slower</em> than ordering one at a time — which is the exact opposite of the truth.</p>
+</div>
+
+<h3>What the benchmark refuses to do</h3>
+
+<p>One decision is worth calling out because it removes a result the project would otherwise be able to show.</p>
+
+<p>While benchmarking, request logging is <strong>switched off</strong>. Saving each request to the database is slow, and because of how the web server works, those saves would show up in the <em>next</em> request's timing. The benchmark would then be measuring database write speed and reporting it as inference speed.</p>
+
+<p>So logging is off — and the consequence is that the cost of logging is not measured anywhere in this project. That is stated plainly in the report rather than left as an unmentioned gap.</p>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Warm-up exclusion</strong> applies to any performance test: database connection pools, web servers, caches, compilers. Anything with one-time setup cost.</li>
+    <li><strong>Separating layers</strong> — measuring the component versus the whole system — is how you find where time is actually going. It is the basis of all profiling.</li>
+    <li><strong>Pinning thread counts and seeds</strong> is essential for any result you intend to compare, publish, or defend. It is also a standard part of designing scientific experiments.</li>
+    <li><strong>Stating what you did not measure</strong> is a professional habit that builds trust far faster than claiming everything was covered.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== STATS -->
+<div class="part-start">
+<span class="part-num">PART 7</span>
+<h1 class="part">How to avoid fooling yourself: the statistics</h1>
+
+<p class="lede">This is the most important part of the document, and the one most projects skip. It contains the single most valuable lesson in the whole repository.</p>
+
+<h2>What is it?</h2>
+
+<p>A small set of mathematical tools that turn raw timings into statements you can defend — and that tell you when the data simply does not support a conclusion.</p>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>The benchmark produces 1,344 numbers. Some average is "faster" than another. Is that a real difference, or is it just the machine being slightly different from one moment to the next?</p>
+  <p style="margin-top:2mm">Here is the thing that makes this genuinely hard: <strong>there is no way to tell by looking at the numbers.</strong> A 15% speedup caused by a real improvement and a 15% speedup caused by your laptop's fan spinning up look identical in the output.</p>
+  <p style="margin-top:2mm">You need a way to measure your own measurement error. That is what this part is about.</p>
+</div>
+
+<h2>The story of the flip</h2>
+
+<p>This is the moment the project changed direction, and it is worth telling properly.</p>
+
+<p>We ran the benchmark twice. Identical command, identical machine, identical everything. And the results <strong>contradicted each other</strong>:</p>
+
+<table><thead><tr><th style="width:26mm">Run</th><th style="width:40mm">Claim about int8 at batch 8</th><th>Direction</th></tr></thead><tbody>
+  <tr><td>First run</td><td>int8 is 1.47× <strong>slower</strong> than fp32</td><td style="color:#a3244b">one way</td></tr>
+  <tr><td>Second run</td><td>int8 is 1.75× <strong>faster</strong> than fp32</td><td style="color:#14663f">the opposite way</td></tr>
+</tbody></table>
+
+<p>Same code, same model, same machine — and the answer completely reversed. Any conclusion drawn from either run alone would have been confidently wrong.</p>
+
+<div class="box why">
+  <span class="box-title">Why this happens</span>
+  <p>Look at the timings. In <code>inproc</code> mode a call takes between <strong>0.03 and 0.7 milliseconds</strong>. That is about the time it takes to blink.</p>
+  <p style="margin-top:2mm">At that scale, ordinary background activity on your computer — a garbage collector pausing for a moment, the operating system switching tasks, a fan starting — is the <em>same size as the difference being measured</em>. You are trying to hear a whisper while someone is rustling paper.</p>
+  <p style="margin-top:2mm">The <code>http</code> measurements, by contrast, take 2–25 ms — far bigger than the rustling. Those stayed consistent between runs.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>Confidence intervals — giving every number an honest range</h3>
+
+<p>Instead of reporting "1.23× faster", every result is reported as a range: <strong>1.23× [1.15, 1.31]</strong>. This says: the measurement came out at 1.23, and we are reasonably sure the true value lies between 1.15 and 1.31.</p>
+
+<p>Two intervals are built differently, for a reason that matters:</p>
+
+<table><thead><tr><th style="width:38mm">Type</th><th>Used for</th><th>Why it is done this way</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Bootstrap</strong></td>
+    <td>Latency percentiles</td>
+    <td>Latency is lopsided — a few very slow calls drag the average up. A symmetric range would put the lower bound somewhere impossible and understate the upper one. Resampling avoids assuming a shape.</td>
+  </tr>
+  <tr>
+    <td><strong>Paired bootstrap</strong></td>
+    <td>Comparing two things</td>
+    <td>The two measurements being compared came from the same machine at the same time — same temperature, same background load. Resampling them together preserves that. Comparing two separate intervals is a classic error that makes real differences look like noise.</td>
+  </tr>
+  <tr>
+    <td><strong>Wilson interval</strong></td>
+    <td>Accuracy</td>
+    <td>The model is 97.41% accurate. A naive interval would give a range like "96% to 101%", and a probability cannot exceed 100%. Wilson stays inside the possible range.</td>
+  </tr>
+</tbody></table>
+
+<div class="kid">
+  <span class="box-title">What "bootstrap" means, simply</span>
+  <p>You have 210 stopwatch readings. You want to know how much your <em>average</em> would wobble if you ran the experiment again.</p>
+  <p>You cannot run it again a thousand times. But you can do something clever: take your 210 readings and pick 210 at random <em>from them</em>, allowing repeats. Average those. Do that 2,000 times.</p>
+  <p>You now have 2,000 slightly different averages. Where most of them land is your confidence interval. You built a picture of your own uncertainty out of the data you already had — no extra runs needed.</p>
+</div>
+
+<h3>The best idea in this project: measuring your own noise</h3>
+
+<p>Here is the clever bit that turns a confusing situation into an honest one.</p>
+
+<p>The benchmark already runs every configuration <strong>three times</strong>. So for any one configuration — same runtime, same batch size, same everything — we have three independent measurements of <em>the identical thing</em>.</p>
+
+<p class="big-answer">Any difference between those three repeats is, by definition, <strong>the harness measuring nothing at all</strong>. That is the noise floor. It is the answer to "how much difference can this setup produce out of thin air?"</p>
+
+<figure>
+<svg viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="10">
+  <!-- band -->
+  <rect x="60" y="60" width="580" height="70" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.4" stroke-dasharray="4 3"/>
+  <text x="350" y="52" text-anchor="middle" font-size="10" font-weight="700" fill="#8a5200">THE NOISE FLOOR — 0.58× to 1.71×</text>
+  <text x="350" y="100" text-anchor="middle" font-size="9.5" fill="#8a5200">In here, a "speedup" is indistinguishable from run-to-run luck.</text>
+  <text x="350" y="116" text-anchor="middle" font-size="9.5" fill="#8a5200">144 comparisons of identical configurations produced this band.</text>
+
+  <!-- axis -->
+  <line x1="60" y1="152" x2="640" y2="152" stroke="#46505f" stroke-width="1.4"/>
+  <line x1="350" y1="146" x2="350" y2="158" stroke="#46505f" stroke-width="1.4"/>
+  <text x="350" y="172" text-anchor="middle" font-size="9" fill="#46505f">1.0× — no difference</text>
+  <line x1="60" y1="146" x2="60" y2="158" stroke="#46505f" stroke-width="1"/>
+  <text x="60" y="172" text-anchor="middle" font-size="9" fill="#46505f">0.58×</text>
+  <line x1="640" y1="146" x2="640" y2="158" stroke="#46505f" stroke-width="1"/>
+  <text x="640" y="172" text-anchor="middle" font-size="9" fill="#46505f">1.71×</text>
+
+  <!-- markers -->
+  <circle cx="200" cy="95" r="5" fill="#a3244b"/>
+  <text x="200" y="192" text-anchor="middle" font-size="8.5" fill="#a3244b">measured 0.834×</text>
+  <circle cx="470" cy="95" r="5" fill="#a3244b"/>
+  <text x="470" y="192" text-anchor="middle" font-size="8.5" fill="#a3244b">measured 1.571×</text>
+  <circle cx="415" cy="95" r="5" fill="#a3244b"/>
+  <text x="560" y="192" text-anchor="middle" font-size="8.5" fill="#a3244b">measured 1.412×</text>
+
+  <rect x="660" y="60" width="34" height="70" fill="none"/>
+  <text x="350" y="24" text-anchor="middle" font-size="10" fill="#46505f">All three measured "speedups" land inside the noise band — so none of them is a result.</text>
+</svg>
+<figcaption>Rule: a comparison only counts if its whole confidence interval sits outside the band.</figcaption>
+</figure>
+
+<div class="kpi">
+  <div><span class="n">144</span><span class="l">null comparisons made</span></div>
+  <div><span class="n">0.580</span><span class="l">lower bound (all modes)</span></div>
+  <div><span class="n">1.708</span><span class="l">upper bound (all modes)</span></div>
+  <div><span class="n">19 / 48</span><span class="l">comparisons flagged unresolvable</span></div>
+</div>
+
+<h3>The honest headline</h3>
+
+<div class="box warn">
+  <span class="box-title">The result this project is actually proudest of</span>
+  <p>The harness cannot resolve its own differences. The noise band is <strong>0.58× to 1.71×</strong> — a range of nearly 3× — and every measured "speedup" sits inside it.</p>
+  <p style="margin-top:2mm">So the report flags <strong>19 of 48 comparisons as "unresolvable"</strong> and says so directly, in bold, in the table.</p>
+  <p style="margin-top:2mm"><strong>Why this is a success and not a failure:</strong> because the alternative is a report that says "int8 is 1.57× faster!" and is wrong. Finding the limits of your own instrument is real engineering work. Pretending not to have limits is how bad decisions get made — and in this case the bad decision would be to switch production to int8 for a speed benefit that may not exist.</p>
+</div>
+
+<h3>Knowing which percentiles are even measurable</h3>
+
+<p>There is a second, quieter honesty check. Percentiles need enough data to mean anything.</p>
+
+<p>To report a p99 — the slowest one request in a hundred — you need at least 100 observations before a single one lands in that range. With only 3 observations in the tail, your "p99" is really just "the slowest one we happened to see", wearing a percentile's name.</p>
+
+<table><thead><tr><th>Percentile</th><th>Observations needed</th><th>Measurable in a quick run?</th></tr></thead><tbody>
+  <tr><td>p50 (the middle)</td><td>20</td><td style="color:#14663f;font-weight:700">Yes, easily</td></tr>
+  <tr><td>p90</td><td>100</td><td style="color:#14663f;font-weight:700">Yes</td></tr>
+  <tr><td>p95</td><td>200</td><td style="color:#8a5200;font-weight:700">Sometimes</td></tr>
+  <tr><td>p99</td><td>1,000</td><td style="color:#a3244b;font-weight:700">No — not in a quick run</td></tr>
+</tbody></table>
+
+<p>So the report does not print a p99 and let you assume it is solid. It marks it as underpowered and tells you <em>how far short</em> you are — 20 calls short is very different from 20,000 calls short, and you deserve to know which.</p>
+
+<div class="box why">
+  <span class="box-title">Why we needed all of this</span>
+  <p>Because a benchmark's job is not to produce numbers. It is to produce numbers a stranger can <strong>act on safely</strong>. A number without its uncertainty is not actionable — it is a rumour with a decimal point.</p>
+  <p style="margin-top:2mm">And the moment you can measure your own error, you gain something unexpected: the ability to say <em>"I don't know"</em> with authority. That is a far more valuable professional skill than the ability to produce an impressive figure.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Every performance claim you ever read.</strong> Ask: how many runs? what was the variance? is there a confidence interval? If not, it is marketing, not measurement.</li>
+    <li><strong>A/B testing, load testing, database tuning, front-end optimisation</strong> — all the same problem, all the same tools. Latency is never normally distributed; bootstrapping is the standard modern answer.</li>
+    <li><strong>The noise-floor idea</strong> generalises to any measurement instrument: run it on two identical things and see what it reports. A weighing scale that reads 100 g and 103 g for the same object cannot resolve a 2 g difference, no matter how precise it looks.</li>
+    <li><strong>Wilson intervals for proportions</strong> are used for conversion rates, error rates, click-through rates — anywhere you are measuring a percentage near 0 or 100%.</li>
+    <li><strong>The habit of reporting uncertainty</strong> will make you noticeably more credible than people who do not. It is rare, and it is obvious when you see it.</li>
+  </ul>
+</div>
+</div>

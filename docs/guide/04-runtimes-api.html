@@ -1,0 +1,277 @@
+<!-- ======================================================== RUNTIMES -->
+<div class="part-start">
+<span class="part-num">PART 4</span>
+<h1 class="part">Three copies of the brain: the runtimes</h1>
+
+<p class="lede">The same trained model, packaged three different ways. This is the experiment the whole project is built around — so it matters that the three copies really are the same brain.</p>
+
+<h2>What is it?</h2>
+
+<p>A model's weights are just numbers. But numbers need a <em>program</em> to interpret them, and there is more than one program that can do that. It is like music: the same song can be on a vinyl record, a CD or a streaming file. Same music, different containers, different trade-offs in quality and convenience.</p>
+
+<table><thead><tr>
+    <th style="width:30mm">Copy</th>
+    <th style="width:34mm">What it is</th>
+    <th>Plain description</th>
+  </tr></thead><tbody>
+  <tr>
+    <td><strong>TorchScript</strong><br><span class="filepath">model.ts</span></td>
+    <td>The original framework, frozen</td>
+    <td>PyTorch is the library the model was written in. TorchScript takes the model and <em>freezes</em> it into a standalone file that no longer needs your Python code. The originals, essentially unchanged.</td>
+  </tr>
+  <tr>
+    <td><strong>ONNX fp32</strong><br><span class="filepath">model.onnx</span></td>
+    <td>A universal interchange format</td>
+    <td>ONNX is a common language that many tools speak. Exporting to it means the model can run on engines that have never heard of PyTorch. Same full-precision numbers.</td>
+  </tr>
+  <tr>
+    <td><strong>ONNX int8</strong><br><span class="filepath">model.int8.onnx</span></td>
+    <td>The compressed version</td>
+    <td>Every number in the model is stored in a smaller box. Almost a third of the size. Slightly less precise by construction — the question is whether the lost precision matters.</td>
+  </tr>
+</tbody></table>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>You trained a model in PyTorch. Now you have to run it in production, a million times a day. Do you ship PyTorch? It is enormous, it is slow to start, and it drags in a whole ecosystem of dependencies you do not need.</p>
+  <p style="margin-top:2mm">There are alternatives. Which one is fastest? Which one is smallest? Does the smallest one still get the right answers?</p>
+  <p style="margin-top:2mm"><strong>These are ordinary engineering questions with measurable answers — but only if you can compare fairly.</strong> That is what this part of the project is.</p>
+</div>
+
+<h2>The most important rule: one brain, three boxes</h2>
+
+<p>Here is the trap. Suppose you train three separate models, export each one differently, and compare their speeds. You would learn nothing, because the three models might genuinely be different — different weights, different accuracy. The speed difference could be caused by the model, not the runtime.</p>
+
+<p class="big-answer">So all three copies are exported from <strong>exactly the same trained weights file</strong>. The only thing that differs between them is the container. Any difference that shows up is caused by the runtime, and nothing else.</p>
+
+<figure>
+<svg viewBox="0 0 700 250" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="10">
+  <defs><marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <rect x="240" y="14" width="220" height="46" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.8"/>
+  <text x="350" y="34" text-anchor="middle" font-weight="700" fill="#1e5fb4">model.pt</text>
+  <text x="350" y="49" text-anchor="middle" font-size="9" fill="#46505f">the one and only trained brain</text>
+
+  <path d="M350,60 L350,80" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M100,80 L600,80" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M100,80 L100,100" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <path d="M350,80 L350,100" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar3)"/>
+  <path d="M600,80 L600,100" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar3)"/>
+
+  <rect x="22" y="104" width="156" height="66" rx="5" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="100" y="124" text-anchor="middle" font-weight="700">TorchScript</text>
+  <text x="100" y="140" text-anchor="middle" font-size="9" fill="#46505f">550.4 KB</text>
+  <text x="100" y="154" text-anchor="middle" font-size="9" fill="#46505f">loads in 11.19 ms</text>
+
+  <rect x="272" y="104" width="156" height="66" rx="5" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="350" y="124" text-anchor="middle" font-weight="700">ONNX fp32</text>
+  <text x="350" y="140" text-anchor="middle" font-size="9" fill="#46505f">535.0 KB</text>
+  <text x="350" y="154" text-anchor="middle" font-size="9" fill="#46505f">loads in 2.94 ms</text>
+
+  <rect x="522" y="104" width="156" height="66" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.8"/>
+  <text x="600" y="124" text-anchor="middle" font-weight="700" fill="#14663f">ONNX int8</text>
+  <text x="600" y="140" text-anchor="middle" font-size="9" fill="#46505f">151.5 KB · 3.5× smaller</text>
+  <text x="600" y="154" text-anchor="middle" font-size="9" fill="#46505f">loads in 3.26 ms</text>
+
+  <path d="M100,170 L100,192" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M350,170 L350,192" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M600,170 L600,192" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M100,192 L600,192" stroke="#7a8798" stroke-width="1.4"/>
+  <path d="M350,192 L350,212" stroke="#a3244b" stroke-width="1.8" marker-end="url(#ar3)"/>
+
+  <rect x="196" y="216" width="308" height="30" rx="5" fill="#fdeef3" stroke="#a3244b" stroke-width="1.8"/>
+  <text x="350" y="236" text-anchor="middle" font-weight="700" fill="#a3244b">PARITY CHECK — all three must agree, or the build fails</text>
+</svg>
+<figcaption>One brain exported three ways, then checked against each other. This is what makes the speed comparison meaningful.</figcaption>
+</figure>
+
+<h2>How does it work here?</h2>
+
+<h3>What int8 actually means</h3>
+
+<p>This is worth understanding properly, because "quantisation" is one of those words that gets used a lot and explained rarely.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You measured your height really carefully: 1.4273 metres. Someone writes it down as "about 1.4 metres."</p>
+  <p>You lost some detail. But you also used far fewer characters, and for most purposes "about 1.4 metres" is completely fine. Quantisation is exactly this: writing the numbers down with less detail, in exchange for taking up much less space.</p>
+  <p>And crucially — if the question is "am I taller than the door frame?", both answers are identical. The lost detail did not change the answer.</p>
+</div>
+
+<p>Technically: normal model numbers are <em>32-bit floats</em>, which store a number with a decimal point and a lot of precision. int8 stores each number as an integer from −128 to 127 — one byte instead of four. A quarter of the space, and smaller numbers are quicker for a processor to move around.</p>
+
+<table><thead><tr><th style="width:32mm">Type</th><th>How stored</th><th>Space each</th><th>Analogy</th></tr></thead><tbody>
+  <tr><td><strong>fp32</strong></td><td>Decimal, high precision</td><td>4 bytes</td><td>1.4273 metres</td></tr>
+  <tr><td><strong>int8</strong></td><td>Whole number, −128…127</td><td>1 byte</td><td>about 1.4 metres</td></tr>
+</tbody></table>
+
+<h3>The result, and a limitation we admit openly</h3>
+
+<div class="kpi">
+  <div><span class="n">3.5×</span><span class="l">smaller file</span></div>
+  <div><span class="n">97.41%</span><span class="l">accuracy — identical</span></div>
+  <div><span class="n">0.0%</span><span class="l">disagreement with fp32</span></div>
+  <div><span class="n">?</span><span class="l">faster? unproven</span></div>
+</div>
+
+<p>So the compression worked perfectly: a third of the size, zero loss in accuracy, zero disagreement with the full-precision version on the test set. Those are excellent, solid results.</p>
+
+<div class="box warn">
+  <span class="box-title">The honest limitation</span>
+  <p>Our int8 model is <strong>not fully compressed</strong>. Only the "dense" parts of the network were converted. The convolution layers — the image-scanning part — had to stay in full precision, because of a bug described in Part 21.</p>
+  <p style="margin-top:2mm">A proper static-quantisation pipeline would compress those too, and get a smaller file than 151 KB. We recorded this in the artifact's metadata and stated it in the report, rather than presenting 3.5× as the best achievable.</p>
+  <p style="margin-top:2mm"><strong>Why admit it?</strong> Because someone reading "3.5× smaller" might reasonably assume that is the limit of the technique, and go on to make a bad decision later. Naming your own ceiling is part of reporting a result honestly.</p>
+</div>
+
+<h3>The parity check: turning agreement into a gate</h3>
+
+<p>After exporting, the code runs all three copies over the same 270 exam pictures and compares their answers:</p>
+
+<table><thead><tr><th>Runtime</th><th>Tolerance for disagreement</th><th>Why</th></tr></thead><tbody>
+  <tr><td>TorchScript</td><td style="color:#14663f;font-weight:700">0%</td><td>It <em>is</em> the reference. Nothing to compare against.</td></tr>
+  <tr><td>ONNX fp32</td><td style="color:#14663f;font-weight:700">0%</td><td>Same numbers in a different format — it should be exactly identical.</td></tr>
+  <tr><td>ONNX int8</td><td style="color:#8a5200;font-weight:700">up to 2%</td><td>Compression loses detail by design. A little disagreement is expected and acceptable.</td></tr>
+</tbody></table>
+
+<p>If any copy exceeds its tolerance, the export <strong>fails the build</strong>. Not a warning printed and ignored — an actual failure that stops everything.</p>
+
+<div class="box why">
+  <span class="box-title">Why failing the build matters so much here</span>
+  <p>A broken export is the worst possible bug for this project, because it produces plausible-looking numbers. If the int8 model were quietly wrong, the benchmark would happily report "int8 is fast!" while it was actually just guessing. Every subsequent conclusion would be built on sand.</p>
+  <p style="margin-top:2mm">Warnings get ignored. A build failure cannot be. So the check is a gate, not a note.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Model compression is standard practice</strong> for putting models on phones, in browsers, on cheap hardware, or anywhere memory is expensive. The same trade-off — size and speed against precision — appears every time.</li>
+    <li><strong>ONNX specifically</strong> is how models move between tools. "I trained it in PyTorch but need it in a C++ program" is a solved problem, and ONNX is usually the answer.</li>
+    <li><strong>Parity testing</strong> — proving that a rewritten, optimised or compressed version of something behaves identically — is a general technique. It applies to database migrations, language rewrites, and compiler changes, not just models.</li>
+    <li><strong>Making a check fail the build rather than printing a warning</strong> is a habit worth adopting everywhere. It is the difference between a check that exists and a check that works.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== API -->
+<div class="part-start">
+<span class="part-num">PART 5</span>
+<h1 class="part">The shop counter: the API</h1>
+
+<p class="lede">The model is a brain in a jar. The API is how the outside world talks to it. This part explains what a web service actually is, and the small decisions that separate a service you can trust from one you cannot.</p>
+
+<h2>What is it?</h2>
+
+<p>A program that sits and waits for other programs to ask it questions over the network. It listens at an address, understands a few specific requests, and sends back answers.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>A restaurant. You do not walk into the kitchen and start cooking. You sit at a table, <strong>order from a menu</strong>, and a waiter takes your order to the kitchen and brings back your food.</p>
+  <p>The menu is the API. It lists exactly what you are allowed to ask for and how to ask for it. The waiter is the code that receives your request and passes it along. And a good waiter does something else important: if you order something not on the menu, they tell you clearly, rather than bringing you a random plate of food and hoping.</p>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Without an API, using your model means: install Python, install the right libraries, write code that loads your model file, and call it. That only works for people who are programmers, on machines where all of that is installed.</p>
+  <p style="margin-top:2mm">With an API, <em>anything</em> that can make a network request can use your model. A phone app, a spreadsheet, a tiny script in any language, a website. The model becomes a <strong>service</strong> rather than a file.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The endpoints — the menu</h3>
+
+<table><thead><tr><th style="width:36mm">Address</th><th style="width:22mm">Type</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>/healthz</code></td><td>liveness</td><td>"Am I alive?" Answers instantly. Deliberately checks nothing else.</td></tr>
+  <tr><td><code>/readyz</code></td><td>readiness</td><td>"Can I actually serve?" Checks the model really loads. Fails if not.</td></tr>
+  <tr><td><code>/metrics</code></td><td>monitoring</td><td>Machine-readable numbers about what the service has been doing.</td></tr>
+  <tr><td><code>/models</code></td><td>inventory</td><td>Lists the three runtimes: present? loaded? how big? how slow to load?</td></tr>
+  <tr><td><code>/stats</code></td><td>inventory</td><td>How many requests have been saved to the log.</td></tr>
+  <tr><td><code>/predict</code></td><td>inference</td><td>One picture in, one answer out.</td></tr>
+  <tr><td><code>/predict/batch</code></td><td>inference</td><td>Up to 64 pictures in, 64 answers out.</td></tr>
+  <tr><td><code>/docs</code></td><td>documentation</td><td>A self-generated, clickable page describing every endpoint.</td></tr>
+</tbody></table>
+
+<p>That last one is worth pausing on. <code>/docs</code> is generated automatically from the code itself, so it cannot fall out of date. If you open <code>http://localhost:8000/docs</code> you get a page where you can look at every endpoint, see exactly what it expects, and <em>click a button to try it</em>. Nobody wrote that page by hand.</p>
+
+<h3>Liveness versus readiness — the distinction that trips everyone up</h3>
+
+<p>This is one of the most commonly misunderstood ideas in running services, and getting it wrong causes outages. So here it is carefully.</p>
+
+<table><thead><tr><th style="width:26mm">Signal</th><th style="width:30mm">Question</th><th>What should happen if it fails</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Liveness</strong><br><code>/healthz</code></td>
+    <td>"Is this process still running, or has it frozen?"</td>
+    <td>Restart it. A frozen process will never recover on its own.</td>
+  </tr>
+  <tr>
+    <td><strong>Readiness</strong><br><code>/readyz</code></td>
+    <td>"Should I send it traffic right now?"</td>
+    <td>Do <strong>not</strong> restart it. Just stop sending requests until it is ready. It may be starting up, or waiting for something.</td>
+  </tr>
+</tbody></table>
+
+<div class="box warn">
+  <span class="box-title">The mistake, and why it is so damaging</span>
+  <p>Most people wire the model check into <em>liveness</em>. The reasoning seems sensible: "if the model is broken, the service is broken, so restart it."</p>
+  <p style="margin-top:2mm">Here is what actually happens. A bad release ships a broken model. Every copy of the service reports "not alive." The orchestrator dutifully restarts all of them. They come up, load the same broken model, and report "not alive" again. Restart. Restart. Restart.</p>
+  <p style="margin-top:2mm">You now have two problems. The original broken model — <em>and</em> a restart storm hammering your system, making logs unreadable and masking the real cause. The original error is buried under thousands of identical restart messages.</p>
+  <p style="margin-top:2mm">Keeping them separate means a broken model produces exactly one clear signal: "ready, but not ready to serve" — and the service just quietly sits out of rotation, logging one honest error. That is far easier to diagnose at 3am.</p>
+</div>
+
+<h3>Things this API does that a naive one would not</h3>
+
+<div class="cards">
+  <div class="card">
+    <h4>Request logging happens <em>after</em> answering</h4>
+    <p>Saving a row to the database is slow. If it happened before answering, the customer would wait for it — and worse, the benchmark would measure database speed and call it inference speed. So it is queued as a background task.</p>
+  </div>
+  <div class="card">
+    <h4>Oversized batches are rejected, not trimmed</h4>
+    <p>Send 1,000 pictures, get an error saying the limit is 64. A friendlier-looking service might silently process the first 64 and return those answers — but then your program believes it has 1,000 results and quietly loses 936. A clear failure beats a silent wrong answer, always.</p>
+  </div>
+  <div class="card">
+    <h4>Errors return errors, not 500s</h4>
+    <p>If you send nonsense, you get a 422 "your request was malformed" with a readable explanation — not a 500 "something exploded", which tells you nothing and suggests the server is at fault.</p>
+  </div>
+  <div class="card">
+    <h4>Confidence, not just an answer</h4>
+    <p>Every prediction comes with a percentage. "It is a 7, and I am 99.4% sure" is far more useful than "7" — because a low-confidence answer is a signal that the input is unusual.</p>
+  </div>
+</div>
+
+<h3>A worked example</h3>
+
+<pre><code><span class="c"># Ask the service about one 8x8 picture, using the int8 runtime</span>
+curl -X POST "http://localhost:8000/predict?runtime=onnx-int8" \
+  -H "Content-Type: application/json" \
+  -d '{"features": [0,0,5,13,9,1,0,0, 0,0,13,15,10,15,5,0, ... ]}'
+
+<span class="c"># Answer:</span>
+{
+  "predictions": [
+    {
+      "predicted_class": 7,
+      "confidence": 0.994,
+      "probabilities": [0.001, 0.000, ... ]
+    }
+  ],
+  "runtime": "onnx-int8",
+  "batch_size": 1,
+  "latency_ms": 3.41
+}</code></pre>
+
+<p>Note the <code>?runtime=</code> in the address. That is how the benchmark tests all three runtimes through the exact same service — one small switch, so that everything else about the request stays identical.</p>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Liveness versus readiness</strong> is used by Kubernetes, Docker Swarm, AWS load balancers, Azure, and every orchestrator. Getting this distinction right is a standard expectation in DevOps and platform roles.</li>
+    <li><strong>Background tasks for slow side-effects</strong> — logging, sending emails, updating a cache — appear in every web service you will ever work on.</li>
+    <li><strong>Rejecting bad input loudly</strong> instead of silently adjusting it is a principle that applies to every interface you design, including command-line tools and internal function calls.</li>
+    <li><strong>Auto-generated API documentation</strong> (this project uses FastAPI's built-in ability) is how modern teams keep documentation honest. If you have ever used a service whose docs were wrong, you know why this matters.</li>
+  </ul>
+</div>
+</div>

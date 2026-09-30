@@ -1,0 +1,348 @@
+<!-- ======================================================== ARCHITECTURE -->
+<div class="part-start">
+<span class="part-num">PART 18</span>
+<h1 class="part">The whole picture</h1>
+
+<p class="lede">Everything from the previous seventeen parts, on one page, in the order it actually happens.</p>
+
+<h2>Follow one request all the way through</h2>
+
+<figure>
+<svg viewBox="0 0 720 480" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9">
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="6" refY="2.6" orient="auto"><path d="M0,0 L0,5.2 L6,2.6 z" fill="#1e5fb4"/></marker>
+    <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="2.6" orient="auto"><path d="M0,0 L0,5.2 L6,2.6 z" fill="#7a8798"/></marker>
+  </defs>
+
+  <!-- STEP 1 -->
+  <circle cx="20" cy="30" r="9" fill="#1e5fb4"/><text x="20" y="34" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">1</text>
+  <rect x="38" y="14" width="180" height="34" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.3"/>
+  <text x="128" y="30" text-anchor="middle" font-weight="700" fill="#1e5fb4">A program sends a picture</text>
+  <text x="128" y="42" text-anchor="middle" font-size="8" fill="#46505f">POST /predict/batch</text>
+
+  <path d="M218,31 L262,31" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+
+  <!-- STEP 2 -->
+  <circle cx="296" cy="30" r="9" fill="#1e5fb4"/><text x="296" y="34" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">2</text>
+  <rect x="314" y="14" width="200" height="34" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.4"/>
+  <text x="414" y="30" text-anchor="middle" font-weight="700" fill="#14663f">The API checks the request</text>
+  <text x="414" y="42" text-anchor="middle" font-size="8" fill="#46505f">right shape? not too big? runtime known?</text>
+
+  <path d="M514,31 L542,31" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+  <rect x="546" y="14" width="160" height="34" rx="4" fill="#fdeef3" stroke="#a3244b" stroke-width="1.2"/>
+  <text x="626" y="30" text-anchor="middle" font-size="8.5" fill="#a3244b">if not → clear error</text>
+  <text x="626" y="42" text-anchor="middle" font-size="8" fill="#46505f">(422 or 413)</text>
+
+  <path d="M414,48 L414,72" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+
+  <!-- STEP 3 -->
+  <circle cx="296" cy="94" r="9" fill="#1e5fb4"/><text x="296" y="98" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">3</text>
+  <rect x="314" y="76" width="200" height="36" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="414" y="92" text-anchor="middle" font-weight="700" fill="#1e5fb4">Pick the runtime</text>
+  <text x="414" y="105" text-anchor="middle" font-size="8" fill="#46505f">already loaded? reuse it : load it</text>
+
+  <path d="M414,112 L414,136" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+
+  <!-- STEP 4 -->
+  <circle cx="296" cy="158" r="9" fill="#1e5fb4"/><text x="296" y="162" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">4</text>
+  <rect x="314" y="140" width="200" height="36" rx="4" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.5"/>
+  <text x="414" y="156" text-anchor="middle" font-weight="700" fill="#5b3a9e">Run the model — with a timer</text>
+  <text x="414" y="169" text-anchor="middle" font-size="8" fill="#46505f">this is the only part that "thinks"</text>
+
+  <path d="M414,176 L414,200" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+
+  <!-- STEP 5 -->
+  <circle cx="296" cy="222" r="9" fill="#1e5fb4"/><text x="296" y="226" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">5</text>
+  <rect x="314" y="204" width="200" height="36" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="414" y="220" text-anchor="middle" font-weight="700" fill="#1e5fb4">Turn scores into answers</text>
+  <text x="414" y="233" text-anchor="middle" font-size="8" fill="#46505f">"7, and I am 99.4% sure"</text>
+
+  <path d="M514,222 L560,222" stroke="#1e5fb4" stroke-width="1.6" marker-end="url(#a)"/>
+
+  <!-- STEP 6 - two branches -->
+  <circle cx="588" cy="222" r="9" fill="#1e5fb4"/><text x="588" y="226" text-anchor="middle" fill="#fff" font-weight="700" font-size="9">6</text>
+  <rect x="604" y="196" width="106" height="26" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.2"/>
+  <text x="657" y="206" text-anchor="middle" font-size="8" fill="#46505f">answer goes back</text>
+  <text x="657" y="216" text-anchor="middle" font-size="8" fill="#46505f">immediately</text>
+
+  <rect x="314" y="262" width="200" height="40" rx="4" fill="#f5f7fa" stroke="#7a8798" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="414" y="278" text-anchor="middle" font-size="8.5" fill="#46505f">meanwhile, off to the side:</text>
+  <text x="414" y="291" text-anchor="middle" font-size="8.5" fill="#46505f">save the request to the log (background)</text>
+  <path d="M514,222 L540,222 L540,282 L516,282" stroke="#7a8798" stroke-width="1.2" fill="none" marker-end="url(#ag)"/>
+
+  <!-- SEPARATOR -->
+  <line x1="14" y1="320" x2="706" y2="320" stroke="#d7dde5" stroke-width="1.4"/>
+  <text x="14" y="338" font-weight="700" font-size="9.5" fill="#46505f" letter-spacing="1">THEN, QUIETLY, IN THE BACKGROUND…</text>
+
+  <!-- monitoring chain -->
+  <rect x="14" y="350" width="128" height="52" rx="4" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.3"/>
+  <text x="78" y="368" text-anchor="middle" font-weight="700" font-size="9" fill="#1e5fb4">Metrics published</text>
+  <text x="78" y="382" text-anchor="middle" font-size="7.5" fill="#46505f">/metrics endpoint</text>
+  <text x="78" y="394" text-anchor="middle" font-size="7.5" fill="#46505f">every 15 seconds</text>
+  <path d="M142,376 L174,376" stroke="#7a8798" stroke-width="1.3" marker-end="url(#ag)"/>
+
+  <rect x="178" y="350" width="116" height="52" rx="4" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.3"/>
+  <text x="236" y="368" text-anchor="middle" font-weight="700" font-size="9" fill="#8a5200">Prometheus</text>
+  <text x="236" y="382" text-anchor="middle" font-size="7.5" fill="#46505f">stores 15 days</text>
+  <text x="236" y="394" text-anchor="middle" font-size="7.5" fill="#46505f">of history</text>
+  <path d="M294,376 L322,376" stroke="#7a8798" stroke-width="1.3"/>
+  <path d="M294,376 L322,360" stroke="#7a8798" stroke-width="1.3" marker-end="url(#ag)"/>
+  <path d="M294,376 L322,392" stroke="#7a8798" stroke-width="1.3" marker-end="url(#ag)"/>
+
+  <rect x="326" y="336" width="120" height="30" rx="4" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.3"/>
+  <text x="386" y="355" text-anchor="middle" font-weight="700" font-size="9" fill="#5b3a9e">Grafana draws it</text>
+
+  <rect x="326" y="374" width="120" height="34" rx="4" fill="#fdeef3" stroke="#a3244b" stroke-width="1.3"/>
+  <text x="386" y="389" text-anchor="middle" font-weight="700" font-size="9" fill="#a3244b">Rules evaluated</text>
+  <text x="386" y="401" text-anchor="middle" font-size="7.5" fill="#46505f">is anything wrong?</text>
+
+  <path d="M446,391 L478,391" stroke="#7a8798" stroke-width="1.3" marker-end="url(#ag)"/>
+  <rect x="482" y="374" width="120" height="34" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.3"/>
+  <text x="542" y="389" text-anchor="middle" font-weight="700" font-size="9" fill="#14663f">Alertmanager</text>
+  <text x="542" y="401" text-anchor="middle" font-size="7.5" fill="#46505f">decides who to tell</text>
+
+  <path d="M602,391 L634,391" stroke="#7a8798" stroke-width="1.3" marker-end="url(#ag)"/>
+  <rect x="638" y="374" width="72" height="34" rx="4" fill="#fff" stroke="#7a8798" stroke-width="1.3"/>
+  <text x="674" y="389" text-anchor="middle" font-size="8.5" font-weight="700">Someone</text>
+  <text x="674" y="401" text-anchor="middle" font-size="7.5" fill="#46505f">gets told</text>
+
+  <!-- loop jobs -->
+  <rect x="14" y="418" width="246" height="50" rx="4" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.3"/>
+  <text x="137" y="436" text-anchor="middle" font-weight="700" font-size="9" fill="#8a5200">Drift job — every 5 minutes</text>
+  <text x="137" y="450" text-anchor="middle" font-size="7.5" fill="#46505f">reads the request log, compares to training data,</text>
+  <text x="137" y="461" text-anchor="middle" font-size="7.5" fill="#46505f">publishes PSI, prunes old rows</text>
+
+  <rect x="272" y="418" width="246" height="50" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.3"/>
+  <text x="395" y="436" text-anchor="middle" font-weight="700" font-size="9" fill="#14663f">Backup job — every hour</text>
+  <text x="395" y="450" text-anchor="middle" font-size="7.5" fill="#46505f">makes an archive, then RESTORES it into a</text>
+  <text x="395" y="461" text-anchor="middle" font-size="7.5" fill="#46505f">scratch copy and checks every row matches</text>
+
+  <rect x="530" y="418" width="180" height="50" rx="4" fill="#f5f7fa" stroke="#7a8798" stroke-width="1.2"/>
+  <text x="620" y="436" text-anchor="middle" font-weight="700" font-size="9">And if it all breaks?</text>
+  <text x="620" y="450" text-anchor="middle" font-size="7.5" fill="#46505f">Terraform rebuilds the machine</text>
+  <text x="620" y="461" text-anchor="middle" font-size="7.5" fill="#46505f">Ansible configures it again from scratch</text>
+</svg>
+<figcaption>One request, six steps, then two background loops that keep the system honest.</figcaption>
+</figure>
+
+<h2>The three layers, and why they are separated</h2>
+
+<table><thead><tr><th style="width:26mm">Layer</th><th style="width:44mm">Contains</th><th>Why it is separate</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Knowledge</strong></td>
+    <td>The model, the reference distribution</td>
+    <td>Expensive to produce, so it is built once and stored. Everything else consumes it read-only.</td>
+  </tr>
+  <tr>
+    <td><strong>Service</strong></td>
+    <td>The API, the runtimes</td>
+    <td>Fast, always running, answers users. Replaceable at any time without losing the model.</td>
+  </tr>
+  <tr>
+    <td><strong>Governance</strong></td>
+    <td>Monitoring, drift, backup, tests, CI</td>
+    <td>Not on the user path at all. These exist so that the other two can be trusted — and they can fail without breaking anything the user sees.</td>
+  </tr>
+</tbody></table>
+
+<p>That third layer is the part most projects skip, and it is the entire point of this one. A model plus an API is a demo. A model plus an API plus monitoring, drift detection, verified backups and automated checks is a <em>service</em>.</p>
+
+<h2>The one-line summary</h2>
+
+<div class="box why">
+  <span class="box-title">If you remember one thing</span>
+  <p>A machine-learning project is <strong>10% model and 90% the engineering that makes the model trustworthy</strong>. This repository is deliberately built so that the 90% is visible — the parts you cannot photograph, demo, or put on a slide, and that determine whether the thing actually works.</p>
+</div>
+</div>
+
+<!-- ======================================================== MISTAKES -->
+<div class="part-start">
+<span class="part-num">PART 19</span>
+<h1 class="part">Twenty-one mistakes, and what each one teaches</h1>
+
+<p class="lede">This is the most valuable part of this document. Not because the mistakes are interesting in themselves, but because every one of them is a mistake you will otherwise make yourself — and recognising the <em>pattern</em> is what transfers.</p>
+
+<p>These are all real, all found during the work, and all fixed. Some were caught by tests; several were caught only because something looked slightly odd and was investigated properly.</p>
+
+<h2>Category 1 — The ones where everything looked fine</h2>
+
+<table><thead><tr><th style="width:8mm">#</th><th style="width:44mm">What went wrong</th><th style="width:52mm">Why it was invisible</th><th>The lesson</th></tr></thead><tbody>
+  <tr>
+    <td>1</td>
+    <td><strong>The benchmark was not reproducible.</strong> Two runs of the identical command timed different inputs.</td>
+    <td>The difference looked exactly like ordinary timing noise — which is precisely what a benchmark expects to see.</td>
+    <td>A bug that mimics expected noise is the hardest kind to find, because the output never looks wrong.</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><strong>Python's built-in hashing was used for seeding.</strong> Python deliberately randomises it per process.</td>
+    <td>Nobody suspects the language itself. It is a documented feature, not a bug.</td>
+    <td>Use an explicitly stable function (like SHA-256) for anything that must be identical across runs. Never assume "the same input gives the same output" unless you have checked.</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>The container's Python was never tested.</strong> Deployment moved to 3.14; the checks stopped at 3.13.</td>
+    <td>Every single check passed. All green. Completely misleading.</td>
+    <td>A check that passes for the wrong reason is worse than no check. Ask: <em>what would make this go red?</em> For a version matrix, the answer must include the version you actually deploy.</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><strong>The image size in the documentation was wrong</strong> — stated as 484 MB when it was 2.24 GB.</td>
+    <td>It was recorded early and never re-measured. Nobody questions a number they wrote themselves.</td>
+    <td>Numbers in documentation go stale. Re-measure before publishing, especially numbers that flatter.</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>Drift detection would have been blind to a broken detector.</strong> "No drift" and "nothing measured" looked identical.</td>
+    <td>Both show as "no drift". A dashboard cannot tell them apart — not because the dashboard is bad, but because the information was never recorded.</td>
+    <td>Always ask of any monitoring signal: <em>what does this look like when the thing producing it is dead?</em></td>
+  </tr>
+</tbody></table>
+
+<h2>Category 2 — The ones that only appear in a different environment</h2>
+
+<table><thead><tr><th style="width:8mm">#</th><th style="width:44mm">What went wrong</th><th style="width:52mm">Why it was invisible</th><th>The lesson</th></tr></thead><tbody>
+  <tr>
+    <td>6</td>
+    <td><strong>Permission denied in the container only.</strong> The results folder resolved to a location owned by the administrator.</td>
+    <td>On a developer's machine that folder is writable. It always worked locally.</td>
+    <td>"Works on my machine" is usually not carelessness — it is a genuinely different environment. Defaults that resolve relative to a file's location change meaning when the file moves.</td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td><strong>A storage folder was created owned by the wrong user</strong>, so the drift job could not write its output.</td>
+    <td>The folder was created automatically by the container system, not by our code, so it was not obvious it needed attention.</td>
+    <td>Create your own directories explicitly, with the right owner, before something else creates them wrongly. Then <strong>verify writability during the build</strong> so it fails early and loudly.</td>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td><strong>Four of nine containers reported unhealthy while working perfectly.</strong> Starting the project appeared to hang forever.</td>
+    <td>The health check was defined once, in the shared image — but only one of the five jobs using that image actually serves web traffic.</td>
+    <td>Put a check next to the thing it checks. A check defined in a shared component is a check that assumes all its users are the same shape.</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td><strong>Two machines ran different versions of the same quality tool</strong> and disagreed about identical files.</td>
+    <td>Each environment was internally consistent. Only comparing them revealed it.</td>
+    <td>Pin tool versions. When a check disagrees between environments, treat it as a finding, not an inconvenience. Here it was pointing at a real robustness problem in variable naming.</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td><strong>The setup tool refused to read its own configuration file</strong> because the directory was world-writable (a Windows-mounted filesystem).</td>
+    <td>It simply fell back to defaults silently. No error, no warning.</td>
+    <td>Tools that degrade silently are dangerous. When behaviour differs from expectation, check whether your configuration was read <em>at all</em>.</td>
+  </tr>
+</tbody></table>
+
+<h2>Category 3 — The ones where the tool lied</h2>
+
+<table><thead><tr><th style="width:8mm">#</th><th style="width:44mm">What went wrong</th><th style="width:52mm">Why it was invisible</th><th>The lesson</th></tr></thead><tbody>
+  <tr>
+    <td>11</td>
+    <td><strong>The model compression tool produced a file that could not be loaded.</strong> It reported success.</td>
+    <td>Compression <em>had</em> succeeded. The output was produced correctly. It just could not run — which is a different question.</td>
+    <td>"The tool succeeded" is not evidence the artifact works. <strong>Load it and run it</strong> before accepting it. The fix was to try candidates and execute each one, keeping the first that actually works.</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td><strong>A version number was written without its leading "v"</strong>, so the security scanner never ran.</td>
+    <td>It failed during setup, before any step executed — so the failure looked like infrastructure flakiness, not a typo.</td>
+    <td>Check that your checks are running. A security check that never executes reports exactly the same thing as one that found nothing.</td>
+  </tr>
+  <tr>
+    <td>13</td>
+    <td><strong>A test alarm endpoint returned "not found"</strong> because it did not read the incoming request body first.</td>
+    <td>The response looked like a routing problem, not a request-handling problem.</td>
+    <td>With streaming request bodies, you sometimes must consume the body before responding — even if you do not want it. Read the documentation of your own framework as carefully as you read the ones you are learning.</td>
+  </tr>
+</tbody></table>
+
+<h2>Category 4 — The performance traps</h2>
+
+<table><thead><tr><th style="width:8mm">#</th><th style="width:44mm">What went wrong</th><th style="width:52mm">Why it was invisible</th><th>The lesson</th></tr></thead><tbody>
+  <tr>
+    <td>14</td>
+    <td><strong>Counting rows after every database write</strong> made writes get quadratically slower. The benchmark stalled after a few thousand requests.</td>
+    <td>Each individual check was fast. The problem only appeared at scale, and looked like a benchmark problem rather than a database problem.</td>
+    <td>Never put a growing cost on a hot path. Move maintenance work to a background job — which is also why row cleanup lives in the drift job now.</td>
+  </tr>
+  <tr>
+    <td>15</td>
+    <td><strong>Generating the report took 113 seconds.</strong> The statistics were computed in a slow loop.</td>
+    <td>It worked correctly. It was just slow enough that people would stop running it.</td>
+    <td>A tool that is correct but unpleasant gets abandoned. Speed is a feature when it determines whether something is actually used.</td>
+  </tr>
+  <tr>
+    <td>16</td>
+    <td><strong>A database connection context manager does not close the connection</strong> — it only manages the transaction.</td>
+    <td>The code read naturally and looked like correct idiomatic Python.</td>
+    <td>A context manager's behaviour is not implied by its appearance. This one leaked a file handle per backup run — invisible on a laptop, quietly fatal on a server running for months.</td>
+  </tr>
+</tbody></table>
+
+<h2>Category 5 — The statistical traps</h2>
+
+<table><thead><tr><th style="width:8mm">#</th><th style="width:44mm">What went wrong</th><th style="width:52mm">Why it was invisible</th><th>The lesson</th></tr></thead><tbody>
+  <tr>
+    <td>17</td>
+    <td><strong>The drift detector produced about three false alarms every run.</strong> Testing 64 features at 5% significance does that by construction.</td>
+    <td>Each individual result was statistically valid. The problem was doing 64 of them at once.</td>
+    <td>Multiple comparisons need correcting. And an alarm that cries wolf gets muted — which is worse than no alarm, because it destroys trust in the whole system.</td>
+  </tr>
+  <tr>
+    <td>18</td>
+    <td><strong>Three features that never vary were included in the drift score</strong>, diluting the average and inflating the denominator.</td>
+    <td>They scored 0, which looks harmless. The damage was in the averages, not in the individual values.</td>
+    <td>Exclude things that cannot carry information. A feature that never changes cannot detect change — but it can still distort a summary statistic.</td>
+  </tr>
+  <tr>
+    <td>19</td>
+    <td><strong>Two identical runs gave opposite answers</strong> about whether int8 was faster. One said 1.47× slower; the next said 1.75× faster.</td>
+    <td>Each run was internally consistent and produced a confident-looking number.</td>
+    <td>The turning point of the project. It led to measuring the harness's own noise — and to the honest conclusion that the harness cannot resolve its own differences. <strong>When your instrument is noisier than your signal, the correct output is "I cannot tell", not the biggest number you saw.</strong></td>
+  </tr>
+  <tr>
+    <td>20</td>
+    <td><strong>A percentile calculation was off by one</strong> on exact inputs, because 0.1 cannot be represented exactly in binary. Reported "101 needed" instead of "100".</td>
+    <td>The result was only wrong on round numbers — the exact cases the documentation quoted.</td>
+    <td>Use integer arithmetic when the answer must be exact. Floating-point is fine for estimates and wrong for thresholds. This was caught by a test that checked the documented examples.</td>
+  </tr>
+  <tr>
+    <td>21</td>
+    <td><strong>Deduplicating bin edges would have broken the reference data</strong> — producing a different number of bins per feature.</td>
+    <td>Deduplication looks obviously correct. It reduces redundancy.</td>
+    <td>A "cleanup" that makes the data tidier can break the shape your code depends on. Read the comment explaining why the redundant-looking code is there — that comment was written by someone who already made this mistake.</td>
+  </tr>
+</tbody></table>
+
+<h2>The five patterns behind all twenty-one</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>1. Silent degradation</h4>
+    <p>Things fall back to defaults, succeed at the wrong thing, or fail where you cannot see. <em>Defence: check that your checks are running.</em></p>
+  </div>
+  <div class="card">
+    <h4>2. Environment divergence</h4>
+    <p>It works here and not there. <em>Defence: pin versions, and test where you deploy.</em></p>
+  </div>
+  <div class="card">
+    <h4>3. Scale-dependent bugs</h4>
+    <p>Fine with ten rows, fatal with a million. <em>Defence: think about growth, and test at realistic size.</em></p>
+  </div>
+  <div class="card">
+    <h4>4. Statistics misapplied</h4>
+    <p>Valid maths, wrong question. <em>Defence: ask what the number would mean if nothing had changed.</em></p>
+  </div>
+  <div class="card">
+    <h4>5. Trusting the tool's own report</h4>
+    <p>"Success" means it finished, not that it worked. <em>Defence: verify the outcome, not the exit code.</em></p>
+  </div>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <p>Every one of these patterns will find you again, in a different technology, wearing different clothes. The specific bug — a hash, a version tag, a folder permission — will not repeat. The <em>shape</em> will, constantly.</p>
+  <p style="margin-top:2mm">The skill that matters is not memorising these twenty-one. It is developing the reflex to ask, whenever something looks fine: <strong>"what would this look like if it were broken?"</strong> That single question is behind most of the fixes above.</p>
+</div>
+</div>

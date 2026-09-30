@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mlserve-ops — The Whole Thing, Explained Simply</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm 16mm; }
+  @page :first { margin: 0; }
+
+  :root {
+    --ink:      #14181f;
+    --ink-soft: #46505f;
+    --line:     #d7dde5;
+    --blue:     #1e5fb4;
+    --blue-bg:  #eef4fc;
+    --green:    #14663f;
+    --green-bg: #ecf7f0;
+    --amber:    #8a5200;
+    --amber-bg: #fdf4e6;
+    --pink:     #a3244b;
+    --pink-bg:  #fdeef3;
+    --purple:   #5b3a9e;
+    --purple-bg:#f2eefb;
+    --grey-bg:  #f5f7fa;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { font-size: 10.5pt; }
+
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    line-height: 1.55;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* ---------------------------------------------------------------- cover */
+  .cover {
+    height: 297mm;
+    padding: 30mm 22mm 20mm 22mm;
+    background: linear-gradient(160deg, #101a2e 0%, #1e3a63 55%, #1e5fb4 100%);
+    color: #fff;
+    page-break-after: always;
+    position: relative;
+  }
+  .cover h1 {
+    font-size: 40pt;
+    line-height: 1.05;
+    margin: 0 0 6mm 0;
+    letter-spacing: -1.2px;
+    font-weight: 800;
+  }
+  .cover .sub {
+    font-size: 14pt;
+    line-height: 1.5;
+    opacity: .93;
+    margin: 0 0 14mm 0;
+    max-width: 135mm;
+    font-weight: 300;
+  }
+  .cover .blurb {
+    background: rgba(255,255,255,.11);
+    border-left: 4px solid rgba(255,255,255,.6);
+    padding: 6mm 7mm;
+    border-radius: 3px;
+    font-size: 10.5pt;
+    line-height: 1.6;
+    max-width: 145mm;
+  }
+  .cover .blurb b { color: #ffd98a; }
+  .cover .facts {
+    position: absolute;
+    bottom: 20mm; left: 22mm; right: 22mm;
+    display: flex; gap: 6mm; flex-wrap: wrap;
+    border-top: 1px solid rgba(255,255,255,.25);
+    padding-top: 6mm;
+    font-size: 9pt;
+  }
+  .cover .facts div { flex: 1 1 30mm; }
+  .cover .facts .n { font-size: 19pt; font-weight: 700; display: block; line-height: 1.1; }
+  .cover .facts .l { opacity: .75; font-size: 8.5pt; }
+  .cover .tag {
+    display: inline-block;
+    border: 1px solid rgba(255,255,255,.45);
+    border-radius: 20px;
+    padding: 1mm 4mm;
+    font-size: 9pt;
+    margin: 0 2mm 3mm 0;
+  }
+
+  /* ---------------------------------------------------------------- heads */
+  h1.part {
+    font-size: 21pt;
+    margin: 0 0 1mm 0;
+    letter-spacing: -.5px;
+    color: var(--blue);
+    line-height: 1.15;
+  }
+  .part-num {
+    display: inline-block;
+    background: var(--blue);
+    color: #fff;
+    font-size: 9.5pt;
+    font-weight: 700;
+    padding: 1mm 3.4mm;
+    border-radius: 20px;
+    margin-bottom: 3mm;
+    letter-spacing: .6px;
+  }
+  h2 {
+    font-size: 13.5pt;
+    margin: 9mm 0 3mm 0;
+    padding-bottom: 1.6mm;
+    border-bottom: 2px solid var(--line);
+    letter-spacing: -.2px;
+  }
+  h3 { font-size: 11.5pt; margin: 6mm 0 2mm 0; color: var(--ink); }
+  h4 { font-size: 10.5pt; margin: 4mm 0 1.5mm 0; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .5px; }
+  p { margin: 0 0 3mm 0; }
+  .lede { font-size: 11.5pt; color: var(--ink-soft); line-height: 1.6; margin-bottom: 5mm; }
+
+  .part-start { page-break-before: always; }
+
+  /* ---------------------------------------------------------------- boxes */
+  .box {
+    border-radius: 4px;
+    padding: 4mm 5mm;
+    margin: 4mm 0;
+    border-left: 4px solid;
+    page-break-inside: avoid;
+    font-size: 9.8pt;
+  }
+  .box .box-title {
+    font-weight: 700;
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    margin-bottom: 1.5mm;
+    display: block;
+  }
+  .box p:last-child, .box ul:last-child, .box ol:last-child { margin-bottom: 0; }
+
+  .why   { background: var(--blue-bg);   border-color: var(--blue);   }
+  .why .box-title   { color: var(--blue); }
+  .need  { background: var(--amber-bg);  border-color: var(--amber);  }
+  .need .box-title  { color: var(--amber); }
+  .later { background: var(--green-bg);  border-color: var(--green);  }
+  .later .box-title { color: var(--green); }
+  .warn  { background: var(--pink-bg);   border-color: var(--pink);   }
+  .warn .box-title  { color: var(--pink); }
+  .kid   { background: var(--purple-bg); border-color: var(--purple); }
+  .kid .box-title   { color: var(--purple); }
+
+  .kid p { font-style: italic; }
+
+  /* ---------------------------------------------------------------- code */
+  code {
+    font-family: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    font-size: 8.8pt;
+    background: var(--grey-bg);
+    padding: .3mm 1.2mm;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: #1d3f6e;
+  }
+  pre {
+    background: #131a26;
+    color: #e6edf6;
+    padding: 3.5mm 4mm;
+    border-radius: 4px;
+    font-family: "Cascadia Mono", Consolas, Menlo, monospace;
+    font-size: 8.4pt;
+    line-height: 1.5;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .c { color: #7c8b9e; }
+  pre .k { color: #7fd1ff; }
+
+  /* ---------------------------------------------------------------- table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3mm 0;
+    font-size: 9pt;
+    /* A long table must be allowed to flow across pages. Forbidding it moves the
+       whole thing to the next page, which strands the part heading on a page of its
+       own. Individual rows stay intact via the rule below, so nothing is cut mid-row. */
+  }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  th {
+    background: var(--grey-bg);
+    text-align: left;
+    padding: 2mm 2.5mm;
+    border-bottom: 2px solid var(--line);
+    font-size: 8.6pt;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--ink-soft);
+  }
+  td {
+    padding: 2mm 2.5mm;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  ul, ol { margin: 2mm 0 3mm 0; padding-left: 6mm; }
+  li { margin-bottom: 1.4mm; }
+
+  /* ---------------------------------------------------------------- figures */
+  figure {
+    margin: 5mm 0;
+    page-break-inside: avoid;
+    text-align: center;
+  }
+  figure svg { max-width: 100%; height: auto; }
+  figcaption {
+    font-size: 8.6pt;
+    color: var(--ink-soft);
+    margin-top: 2mm;
+    text-align: center;
+    font-style: italic;
+  }
+
+  .grid2 { display: flex; gap: 4mm; flex-wrap: wrap; }
+  .grid2 > * { flex: 1 1 45%; }
+  .cards { display: flex; gap: 3mm; flex-wrap: wrap; margin: 4mm 0; }
+  .card {
+    flex: 1 1 40mm;
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--blue);
+    border-radius: 4px;
+    padding: 3mm 3.5mm;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+  .card h4 { margin-top: 0; color: var(--blue); text-transform: none; font-size: 10pt; letter-spacing: 0; }
+  .card p:last-child { margin-bottom: 0; }
+
+  .kpi { display: flex; gap: 3mm; margin: 4mm 0; flex-wrap: wrap; }
+  .kpi > div {
+    flex: 1 1 30mm;
+    background: var(--grey-bg);
+    border-radius: 4px;
+    padding: 3mm;
+    text-align: center;
+    border-bottom: 3px solid var(--blue);
+  }
+  .kpi .n { font-size: 17pt; font-weight: 700; color: var(--blue); display: block; line-height: 1.1; }
+  .kpi .l { font-size: 8pt; color: var(--ink-soft); }
+
+  .toc { font-size: 10pt; }
+  .toc ol { list-style: none; padding-left: 0; counter-reset: t; }
+  .toc li {
+    counter-increment: t;
+    padding: 1.4mm 0;
+    border-bottom: 1px dotted var(--line);
+    display: flex;
+    gap: 3mm;
+  }
+  .toc li::before {
+    content: counter(t);
+    color: var(--blue);
+    font-weight: 700;
+    min-width: 7mm;
+    font-size: 9pt;
+  }
+  .toc .t { font-weight: 600; }
+  .toc .d { color: var(--ink-soft); font-size: 8.8pt; }
+
+  .pb { page-break-before: always; }
+  .avoid { page-break-inside: avoid; }
+
+  .tagline {
+    font-size: 9.5pt;
+    color: var(--ink-soft);
+    font-style: italic;
+    border-left: 3px solid var(--line);
+    padding-left: 4mm;
+    margin: 4mm 0;
+  }
+
+  .filepath {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 8.4pt;
+    color: var(--purple);
+    background: var(--purple-bg);
+    padding: .4mm 1.4mm;
+    border-radius: 3px;
+  }
+
+  .big-answer {
+    font-size: 11pt;
+    font-weight: 600;
+    color: var(--blue);
+    margin: 4mm 0;
+    padding: 3mm 0 3mm 5mm;
+    border-left: 4px solid var(--blue);
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================================================== COVER -->
+<div class="cover">
+  <h1 style="white-space:nowrap">mlserve-ops</h1>
+  <p class="sub">A machine-learning service, and everything around it — explained in plain words, from the very beginning.</p>
+
+  <div class="blurb">
+    <b>What this document is.</b> A guided tour of a real, working software project.
+    It explains <b>what every piece is</b>, <b>why it had to exist</b>, and
+    <b>where you will meet the same idea again</b> in your own work later.
+    <br><br>
+    Nothing here assumes you already know the words. When a new word shows up, it
+    gets explained on the spot. If you can read a story, you can read this.
+  </div>
+
+  <div style="margin-top:14mm">
+    <span class="tag">Machine learning</span>
+    <span class="tag">Web services</span>
+    <span class="tag">Benchmarking</span>
+    <span class="tag">Statistics</span>
+    <span class="tag">Docker</span>
+    <span class="tag">Monitoring</span>
+    <span class="tag">Ansible</span>
+    <span class="tag">Terraform</span>
+    <span class="tag">CI/CD</span>
+  </div>
+
+  <div class="facts">
+    <div><span class="n">3</span><span class="l">ways to run the same model</span></div>
+    <div><span class="n">255</span><span class="l">automatic checks</span></div>
+    <div><span class="n">64</span><span class="l">inputs watched for drift</span></div>
+    <div><span class="n">9</span><span class="l">containers in the stack</span></div>
+    <div><span class="n">0&nbsp;&pound;</span><span class="l">cost to run</span></div>
+  </div>
+</div>

@@ -1,0 +1,211 @@
+<!-- ======================================================== DRIFT -->
+<div class="part-start">
+<span class="part-num">PART 8</span>
+<h1 class="part">The smoke alarm: drift detection</h1>
+
+<p class="lede">A machine-learning service can fail while every technical check says it is healthy. This is the part that catches that, and it is the most machine-learning-flavoured piece of engineering here.</p>
+
+<h2>What is it?</h2>
+
+<p>A background job that regularly looks at the pictures people have actually been sending, compares them to the pictures the model learned from, and raises a flag if the two have drifted apart.</p>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it — the silent failure</span>
+  <p>Imagine your digit model works perfectly. Now imagine that, over months, your users start sending photos taken with a different camera: sharper edges, different lighting, a slightly different way of writing. The model has never seen this style.</p>
+  <p style="margin-top:2mm">What happens? <strong>Almost nothing visible.</strong> The service stays up. Response times are fine. No errors are logged. Every dashboard is green. The model confidently returns answers — it always returns <em>an</em> answer, because that is all it can do.</p>
+  <p style="margin-top:2mm">It just gets more of them wrong. Silently. And the only way you find out is when a human eventually notices that the results have been bad for weeks.</p>
+</div>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You learned to recognise your friends by their faces. Now everyone starts wearing sunglasses and hats. You still smile and say "hello, Sarah!" — you are not confused, you are not making an error message. You are just wrong more often, and nobody notices, because you sound perfectly confident.</p>
+  <p>Drift detection is noticing that everyone is wearing hats now.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The idea: compare shapes of distributions</h3>
+
+<p>You cannot compare individual pictures — tomorrow's pictures are naturally different from yesterday's, and that is fine. What you compare is the overall <em>shape</em> of the data.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You cannot tell if a class of children has changed by looking at one child. But if you line them all up by height, you get a shape — most in the middle, few at the edges.</p>
+  <p>Do that every year. If the shape stays the same, the class is the same kind of class. If suddenly everyone is much taller, something changed — even though every individual child is still just "a child."</p>
+</div>
+
+<p>For each of the 64 pixels, the job asks: <em>do production values fall into the same buckets, in the same proportions, as during training?</em></p>
+
+<h3>The measuring stick: PSI</h3>
+
+<p>The score is called <strong>Population Stability Index</strong>. It compares the share of values in each bucket now versus during training:</p>
+
+<table><thead><tr><th style="width:28mm">PSI score</th><th style="width:30mm">Verdict</th><th>Meaning</th></tr></thead><tbody>
+  <tr><td>under 0.1</td><td style="color:#14663f;font-weight:700">stable</td><td>Looks like training data. Nothing to do.</td></tr>
+  <tr><td>0.1 to 0.25</td><td style="color:#8a5200;font-weight:700">watch</td><td>Something is shifting. Keep an eye on it.</td></tr>
+  <tr><td>over 0.25</td><td style="color:#a3244b;font-weight:700">alert</td><td>Meaningfully different. Investigate.</td></tr>
+</tbody></table>
+
+<p>These thresholds are the industry convention, which matters more than it might seem: a PSI of 0.3 means the same thing on a big dataset as on a small one, so the number is portable between teams and companies.</p>
+
+<h3>Two detectors, and why only one of them decides</h3>
+
+<p>The job computes two different statistics. Only one is allowed to raise the alarm. This is a deliberate design decision worth understanding.</p>
+
+<table><thead><tr><th style="width:26mm">Measure</th><th style="width:26mm">Role</th><th>Why</th></tr></thead><tbody>
+  <tr>
+    <td><strong>PSI</strong></td>
+    <td style="color:#14663f;font-weight:700">Decides</td>
+    <td>It is a <em>magnitude</em> — a size, not a yes/no answer. So it does not care how much data you have. Bigger window, smaller window, same meaning.</td>
+  </tr>
+  <tr>
+    <td><strong>KS test</strong></td>
+    <td style="color:#8a5200;font-weight:700">Corroborates</td>
+    <td>It is a <em>statistical test</em>, which answers "is there <em>any</em> difference?" More data makes it more sensitive — so it eventually finds differences far too small to matter.</td>
+  </tr>
+</tbody></table>
+
+<div class="box warn">
+  <span class="box-title">The false alarm problem — why KS cannot be in charge</span>
+  <p>There are 64 features. A statistical test at the usual 5% confidence level falsely fires about once in twenty times <em>by pure chance</em>. Across 64 features, that is roughly <strong>3 false alarms every single run</strong> — every run, forever, on data that has not changed at all.</p>
+  <p style="margin-top:2mm">Add the sample-size sensitivity and you get a detector that cries wolf constantly. And the predictable human response to an alarm that fires three times a run is to <strong>mute it</strong>. At which point you have paid for a smoke alarm and disconnected the battery.</p>
+  <p style="margin-top:2mm">So PSI decides. KS is recorded in the output as supporting evidence — genuinely useful when you are investigating a real alert — but it cannot page anyone.</p>
+</div>
+
+<h3>Three features excluded, on purpose</h3>
+
+<p>Every 8×8 digit picture has pixels in the corners that are background in <em>every single training image</em>. Those pixels never change. Across 64 features, <strong>3 of them are completely constant</strong>.</p>
+
+<p>Those 3 are excluded from scoring, and the reasoning is worth following because it is a nice piece of clear thinking:</p>
+
+<ul>
+  <li>A feature that never varies has no distribution. There is no "normal" for it to deviate from.</li>
+  <li>Its PSI is therefore <strong>0 no matter what arrives</strong> — you could send it anything and it would score zero.</li>
+  <li>Including it would drag the average PSI down, making real drift in the other 61 features look smaller.</li>
+  <li>It would also inflate the denominator in "what fraction of features drifted?" — making a genuine widespread problem look less widespread.</li>
+</ul>
+
+<p>So they are excluded from scoring — but they are <em>recorded in the output</em>, so nobody later wonders why the numbers do not add up to 64. Hiding it would be worse than the tiny inconsistency it avoids.</p>
+
+<h3>Distinguishing "nothing moved" from "nothing was measured"</h3>
+
+<p>A quiet design decision with real consequences. The job publishes a metric called <code>mlserve_drift_measured</code>:</p>
+
+<table><thead><tr><th style="width:30mm">Value</th><th>Meaning</th></tr></thead><tbody>
+  <tr><td><strong>1</strong></td><td>The window was compared against the reference and nothing moved. Genuinely healthy.</td></tr>
+  <tr><td><strong>0</strong></td><td>The window was too small to compare. Nothing was checked at all.</td></tr>
+</tbody></table>
+
+<p>Without this distinction those two situations look identical — both show "no drift". So a drift job that had been <em>broken and silent for three weeks</em> would look exactly like a perfectly healthy one on every dashboard.</p>
+
+<p>With the distinction, there is a separate alarm: <strong>"the drift detector has not run successfully in two hours."</strong> That catches the failure that a dashboard fundamentally cannot.</p>
+
+<div class="box why">
+  <span class="box-title">Why we needed this, generally</span>
+  <p>"Everything looks fine" and "I have no information" are completely different states, and monitoring systems confuse them constantly. A graph with no line on it is not a flat line at zero. Any time you build a system that reports on itself, ask: <em>what does this look like when it is broken?</em> If the answer is "the same as when it is healthy," you have a blind spot.</p>
+</div>
+
+<h3>The alert policy</h3>
+
+<table><thead><tr><th style="width:50mm">Condition</th><th>Verdict</th></tr></thead><tbody>
+  <tr><td>Any single feature over PSI 0.25</td><td style="color:#a3244b;font-weight:700">alert</td></tr>
+  <tr><td>More than 20% of features over PSI 0.10</td><td style="color:#a3244b;font-weight:700">alert — many features moving together is a real change</td></tr>
+  <tr><td>Some features over 0.10, none over 0.25</td><td style="color:#8a5200;font-weight:700">watch — noted, not paged</td></tr>
+  <tr><td>Nothing over 0.10</td><td style="color:#14663f;font-weight:700">stable</td></tr>
+</tbody></table>
+
+<p>The reasoning behind the second rule: one feature drifting is usually noise, a measurement quirk, or a feature that is simply unstable. But when a fifth of your inputs move <em>together</em>, that is almost never chance. It means the input has genuinely changed — a new data source, a new camera, a new user population.</p>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Any live model</strong> in any industry needs this: fraud detection, credit scoring, recommendations, demand forecasting, medical risk. The features differ; the technique is identical.</li>
+    <li><strong>PSI and KS</strong> are standard tools in data science and analytics roles. Recognising which one answers which question is a genuine interview differentiator.</li>
+    <li><strong>The multiple-comparisons problem</strong> (64 tests means 3 false alarms) appears everywhere data is tested in bulk: A/B testing many metrics, genomics, anomaly detection across many sensors.</li>
+    <li><strong>Distinguishing "no problem" from "no data"</strong> is a principle for every dashboard, alert and health check you will ever write.</li>
+    <li><strong>The "false alarms get muted" argument</strong> is how you justify spending engineering time on alert quality. An alert nobody trusts is worse than no alert, because it trains people to ignore the system.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== BACKUP -->
+<div class="part-start">
+<span class="part-num">PART 9</span>
+<h1 class="part">The photocopy you actually test: backup</h1>
+
+<p class="lede">Everyone makes backups. Almost nobody knows whether theirs work. This part is about the difference — and it is one of the most practically valuable pieces in the whole project.</p>
+
+<h2>What is it?</h2>
+
+<p>Two programs. One makes a dated archive of everything important. The other takes that archive, <em>actually restores it</em>, and checks that what came back matches what went in.</p>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Writing a backup is easy. A single command, or ten lines of code. It produces a file. Everyone feels safe.</p>
+  <p style="margin-top:2mm">But a backup file is a <strong>hypothesis</strong>, not a guarantee. It has never been proven to contain what you think. The proof only arrives on the worst day of your professional life: when production data is gone and you reach for the archive.</p>
+  <p style="margin-top:2mm">And that is exactly the moment when you find out the file was truncated, or the database inside it was captured mid-write and is corrupt, or the restore procedure needs a tool you do not have, or the archive was being written to a directory that stopped existing six months ago.</p>
+</div>
+
+<p class="big-answer">A backup you have never restored is not a backup. It is a wish.</p>
+
+<h2>How does it work here?</h2>
+
+<h3>What actually gets proven</h3>
+
+<p>The verifier does not check that the file exists. That would be nearly worthless. It does all of this:</p>
+
+<table><thead><tr><th style="width:12mm">#</th><th>Check</th><th>What it would catch</th></tr></thead><tbody>
+  <tr><td>1</td><td>Open the archive as a real archive</td><td>A file that was truncated, or is not actually an archive at all.</td></tr>
+  <tr><td>2</td><td>Find the manifest inside</td><td>An archive from a different version, or an empty one.</td></tr>
+  <tr><td>3</td><td>Verify the checksum of every model file</td><td>Silent corruption — a single flipped bit in the model file, which would make it load and quietly predict rubbish.</td></tr>
+  <tr><td>4</td><td>Verify the database file checksum</td><td>The same, for the data.</td></tr>
+  <tr><td>5</td><td>Actually restore the database into a scratch location</td><td>A file that is structurally valid but unusable in practice.</td></tr>
+  <tr><td>6</td><td>Count the rows in the restored copy and compare to the manifest</td><td>A restore that "succeeded" but lost data.</td></tr>
+</tbody></table>
+
+<p>Only after all six does it report success — and it <strong>raises an error on any mismatch</strong> rather than returning a true/false that a caller could ignore.</p>
+
+<h3>The bug this design would have caught</h3>
+
+<p>The database is copied using SQLite's own backup facility, not by copying the file. That sounds pedantic. It is not.</p>
+
+<div class="box warn">
+  <span class="box-title">Why copying a database file is not a backup</span>
+  <p>A live database is not just the file on disk. Part of its current state lives in memory — pages waiting to be written, a transaction in progress. If you copy the file while it is being written to, you can capture a <strong>torn</strong> state: half of the old data and half of the new.</p>
+  <p style="margin-top:2mm">The result looks like a perfectly normal database file. It opens. It answers queries. It is just quietly missing or duplicating rows at the moment of the copy.</p>
+  <p style="margin-top:2mm">SQLite's backup API takes a proper, consistent snapshot — it knows how to do this correctly. Using it is one line instead of one line, so there was never a reason to do it the wrong way.</p>
+</div>
+
+<h3>Testing the alarm, not just the safe</h3>
+
+<p>There is a subtle testing principle here. A verifier that has only ever been seen to <em>pass</em> has not been tested. It might pass everything — including a corrupt archive.</p>
+
+<p>So the test suite deliberately corrupts an archive and asserts that the verifier <strong>rejects</strong> it. That is the only way to know the verifier actually checks anything.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You install a smoke alarm. You press the test button. It beeps. Good — the alarm works.</p>
+  <p>But how do you know it would beep for <em>actual smoke</em>, and not only when you press the button? You have to test it with something that is genuinely a problem. That is what corrupting an archive does for this verifier.</p>
+</div>
+
+<h3>Why it is written in Python, not shell</h3>
+
+<p>The original plan was a shell script, which is the traditional way to do this. It was changed to Python for one reason: <strong>the developer's machine is Windows, where shell scripts cannot be tested.</strong></p>
+
+<p>A backup routine that has never been run is a liability — and the backup path is the <em>last</em> place you want untested code. Writing it in Python means it can be run and tested on every machine, in the test suite, and in the automated checks. The Ansible setup runs this same code on a timer, so nothing is lost.</p>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>"Verify your restores"</strong> is one of the most respected things you can say in a systems interview. It is the standard answer to "how do you know your backups work?" and most candidates do not have it.</li>
+    <li><strong>Checksums for integrity</strong> are used everywhere: package managers, download verification, container images, data pipelines, git itself.</li>
+    <li><strong>Testing the failure path</strong> — deliberately breaking something to prove the detector notices — is a core discipline. The same idea appears in chaos engineering at large companies.</li>
+    <li><strong>Choosing a testable language over a traditional one</strong> happens whenever a script matters enough that being untested is unacceptable. Automation, migration scripts, deployment steps.</li>
+    <li><strong>Row-count and checksum comparison</strong> is how you verify any data migration: database upgrades, cloud moves, format changes.</li>
+  </ul>
+</div>
+</div>

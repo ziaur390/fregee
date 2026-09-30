@@ -1,0 +1,246 @@
+<!-- ======================================================== CONFIG + TASKS -->
+<div class="part-start">
+<span class="part-num">PART 10</span>
+<h1 class="part">The settings drawer, and the remote control</h1>
+
+<p class="lede">Two small pieces of housekeeping that make everything else pleasant to use. Neither is exciting; both are the difference between a project people can work with and one they avoid.</p>
+
+<h2>What is it? — the settings drawer</h2>
+
+<p>Four small text files in <code>configs/</code> that hold every number the project uses. Want to try 128 pictures per batch instead of 64? Change one line in a text file. No code editing, no searching through thousands of lines for a magic number.</p>
+
+<table><thead><tr><th style="width:38mm">File</th><th>Holds</th></tr></thead><tbody>
+  <tr>
+    <td><span class="filepath">configs/model.yaml</span></td>
+    <td>How big the network is, the seed (1337), how the data is split.</td>
+  </tr>
+  <tr>
+    <td><span class="filepath">configs/serving.yaml</span></td>
+    <td>Which runtime is the default, the maximum batch size, whether to log requests.</td>
+  </tr>
+  <tr>
+    <td><span class="filepath">configs/bench.yaml</span></td>
+    <td>The whole benchmark matrix: how many calls, how many repeats, batch sizes, concurrency levels.</td>
+  </tr>
+  <tr>
+    <td><span class="filepath">configs/drift.yaml</span></td>
+    <td>Bucket count, minimum window size, and the PSI thresholds.</td>
+  </tr>
+</tbody></table>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Numbers scattered through the code are one of the most common sources of quiet confusion. Someone changes a batch size in one place and not another. Two parts of the system disagree about how big a batch is allowed to be, and the bug is invisible until something fails in production.</p>
+  <p style="margin-top:2mm">Worse: nobody can see the whole picture. What <em>are</em> the current settings? You would have to read the entire codebase to find out.</p>
+</div>
+
+<p>With config files, everything important is visible in four short files. And each one carries its reasoning as comments — why the batch limit is 64, why the seed is 1337, why the bucket count is 10. Six months later, those comments are what stops someone from "fixing" a number that was deliberate.</p>
+
+<h3>A detail that matters: environment variables</h3>
+
+<p>Some settings can be overridden without editing the file at all, using <em>environment variables</em> — small named values that a program reads when it starts.</p>
+
+<pre><code><span class="c"># Run a quick benchmark in CI without touching the config</span>
+MLSERVE_BENCH_CALLS=10 MLSERVE_BENCH_REPEATS=1 python tasks.py bench
+
+<span class="c"># Write results somewhere other than ./results</span>
+MLSERVE_RESULTS=/tmp/myrun python tasks.py bench</code></pre>
+
+<p>This is how one configuration serves two purposes: a real, thorough run on a laptop, and a fast smoke test in automation. The file holds the settings a report is pinned to; the environment handles temporary variation.</p>
+
+<div class="box warn">
+  <span class="box-title">A real bug this caused, and its lesson</span>
+  <p>There is a setting that decides where results get written. On a developer's machine it defaults to a folder inside the project, which is writable. Inside the container, that same default pointed at a folder <strong>owned by the system administrator account</strong>, and the service deliberately runs as an unprivileged user.</p>
+  <p style="margin-top:2mm">Result: the drift job crashed with "permission denied", every time, only in the container. It worked perfectly on every developer machine — which is why it survived so long.</p>
+  <p style="margin-top:2mm"><strong>The lesson:</strong> "it works on my machine" is usually not carelessness. It is a genuinely different environment. Defaults that resolve relative to the code's location behave differently when the code is moved somewhere with different permissions. This is why the fix was to set the path <em>explicitly</em> in the container, with a comment explaining why the line must not be deleted.</p>
+</div>
+
+<h2>What is it? — the remote control</h2>
+
+<p>A single file, <code>tasks.py</code>, that gives every project action a short name.</p>
+
+<pre><code>python tasks.py test      <span class="c"># run the checks</span>
+python tasks.py bench     <span class="c"># run the benchmark</span>
+python tasks.py report    <span class="c"># build the report</span>
+python tasks.py verify    <span class="c"># do everything, end to end</span></code></pre>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Real projects need long, fiddly commands with the right environment, the right paths and the right order. Nobody remembers them. People copy them out of old chat messages and get them slightly wrong.</p>
+  <p style="margin-top:2mm">And there is a worse problem: the commands live in one person's memory. A new contributor has to be told everything.</p>
+</div>
+
+<p>With a task runner, there is one place to look. Running <code>python tasks.py</code> with no arguments <strong>lists every available action with a description</strong>, so the project explains itself.</p>
+
+<figure>
+<svg viewBox="0 0 700 130" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <rect x="10" y="10" width="150" height="110" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="85" y="30" text-anchor="middle" font-weight="700" fill="#1e5fb4">tasks.py</text>
+  <text x="85" y="46" text-anchor="middle" fill="#46505f">the one place</text>
+  <text x="85" y="59" text-anchor="middle" fill="#46505f">commands live</text>
+  <text x="85" y="80" text-anchor="middle" font-size="8.5" fill="#46505f">pure Python</text>
+  <text x="85" y="93" text-anchor="middle" font-size="8.5" fill="#46505f">standard library only</text>
+  <text x="85" y="110" text-anchor="middle" font-size="8.5" fill="#14663f">works on Windows</text>
+
+  <path d="M160,65 L196,65" stroke="#7a8798" stroke-width="1.4" marker-end="url(#arD)"/>
+
+  <rect x="200" y="10" width="150" height="110" rx="5" fill="#fff" stroke="#7a8798" stroke-width="1.2"/>
+  <text x="275" y="30" text-anchor="middle" font-weight="700" font-size="9.5">Makefile</text>
+  <text x="275" y="46" text-anchor="middle" fill="#46505f">a thin wrapper</text>
+  <text x="275" y="62" text-anchor="middle" font-size="8.5" fill="#46505f">make test</text>
+  <text x="275" y="75" text-anchor="middle" font-size="8.5" fill="#46505f">make bench</text>
+  <text x="275" y="95" text-anchor="middle" font-size="8.5" fill="#46505f">for Linux users,</text>
+  <text x="275" y="108" text-anchor="middle" font-size="8.5" fill="#46505f">who expect make</text>
+
+  <path d="M350,65 L386,65" stroke="#7a8798" stroke-width="1.4" marker-end="url(#arD)"/>
+
+  <rect x="390" y="10" width="300" height="110" rx="5" fill="#f5f7fa" stroke="#7a8798" stroke-width="1.2"/>
+  <text x="540" y="30" text-anchor="middle" font-weight="700" font-size="9.5">The same commands, everywhere</text>
+  <text x="404" y="50" fill="#46505f">Your Windows laptop</text>
+  <text x="404" y="65" fill="#46505f">Your Linux server</text>
+  <text x="404" y="80" fill="#46505f">The automated build machine</text>
+  <text x="404" y="95" fill="#46505f">Inside the container</text>
+  <text x="404" y="113" fill="#14663f" font-weight="700">Identical behaviour, every time</text>
+</svg>
+<figcaption>One definition of each command, three ways to reach it.</figcaption>
+</figure>
+
+<div class="box why">
+  <span class="box-title">Why Python instead of the usual tool</span>
+  <p>Everyone in this field has heard of <code>make</code>, which is the traditional way to do this. But <strong><code>make</code> is not installed on Windows by default</strong>, and this project must work on the developer's actual machine.</p>
+  <p style="margin-top:2mm">Installing extra software to run your own project is friction, and friction is what makes people stop working on things. So the tasks are written in plain Python using only the standard library — which means if you have Python, you can run the project. No installation step at all.</p>
+  <p style="margin-top:2mm">A Makefile is provided too, so people on Linux who instinctively type <code>make test</code> are not surprised. It simply forwards to the same Python file. <strong>Two doors, one room.</strong></p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Task runners of some kind exist in every mature project</strong> — <code>make</code>, <code>just</code>, <code>npm scripts</code>, <code>rake</code>, <code>invoke</code>, <code>Taskfile</code>. The concept is universal even when the tool differs.</li>
+    <li><strong>Config files with comments explaining the reasoning</strong> are how you leave notes for the future. Code tells you <em>what</em>; a comment next to a threshold tells you <em>why it is that number and not another</em>.</li>
+    <li><strong>Environment variable overrides</strong> are the standard way to configure the same software for development, testing and production without maintaining separate copies.</li>
+    <li><strong>Choosing your own tools to fit the environment</strong> rather than following tradition — and explaining the choice — is a judgement you will be asked to make repeatedly.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== DOCKER -->
+<div class="part-start">
+<span class="part-num">PART 11</span>
+<h1 class="part">The lunchbox: Docker</h1>
+
+<p class="lede">The tool that ended the phrase "but it works on my machine." This part explains what containers actually are, and the specific decisions that make this particular image good.</p>
+
+<h2>What is it?</h2>
+
+<p>A way of packaging a program together with <em>everything it needs to run</em> — the right version of Python, the right libraries, the right system settings — into a single sealed unit.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>Your friend says "I made you lunch, come get it." You arrive and they say "oh, but you need to bring your own plate, and a fork, and my kitchen only works on Tuesdays."</p>
+  <p>A lunchbox solves this. The food, the plate, the fork and the napkin are all inside. Hand it to anyone, anywhere, and they can eat. That is what Docker does for software.</p>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Our program needs Python, plus about eight libraries, each with its own specific version. Different versions of those libraries behave differently. Your laptop has one combination; the server has another; the automation machine has a third.</p>
+  <p style="margin-top:2mm">So the program works on your machine and mysteriously fails elsewhere. Hours disappear into "which version of numpy do you have?"</p>
+  <p style="margin-top:2mm">Containers make the environment part of the software. There is no "which version do you have" — the version is fixed inside the box.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The two-stage build</h3>
+
+<p>This is the most interesting decision in the Dockerfile, and it solves a problem that surprises people.</p>
+
+<figure>
+<svg viewBox="0 0 700 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <defs><marker id="arD" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <text x="10" y="16" font-weight="700" font-size="10.5" fill="#8a5200">STAGE 1 — THE WORKSHOP (thrown away afterwards)</text>
+  <rect x="10" y="26" width="290" height="140" rx="5" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.4"/>
+  <text x="155" y="48" text-anchor="middle" fill="#8a5200" font-weight="700">Everything needed to BUILD</text>
+  <text x="26" y="70" fill="#46505f">• compilers (gcc, g++)</text>
+  <text x="26" y="86" fill="#46505f">• development headers</text>
+  <text x="26" y="102" fill="#46505f">• downloaded package caches</text>
+  <text x="26" y="118" fill="#46505f">• a full Python installation</text>
+  <text x="26" y="140" fill="#a3244b" font-weight="700">Hundreds of megabytes of tools</text>
+  <text x="26" y="156" fill="#a3244b" font-weight="700">that the running service never uses.</text>
+
+  <path d="M300,96 L340,96" stroke="#7a8798" stroke-width="1.8" marker-end="url(#arD)"/>
+  <text x="320" y="86" text-anchor="middle" font-size="8" fill="#14663f" font-weight="700">copy</text>
+  <text x="320" y="112" text-anchor="middle" font-size="8" fill="#14663f" font-weight="700">only</text>
+  <text x="320" y="124" text-anchor="middle" font-size="8" fill="#14663f" font-weight="700">this →</text>
+
+  <text x="400" y="16" font-weight="700" font-size="10.5" fill="#14663f">STAGE 2 — THE LUNCHBOX (what actually ships)</text>
+  <rect x="400" y="26" width="290" height="140" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.4"/>
+  <text x="545" y="48" text-anchor="middle" fill="#14663f" font-weight="700">Everything needed to RUN</text>
+  <text x="416" y="70" fill="#46505f">• the finished Python environment</text>
+  <text x="416" y="86" fill="#46505f">• two small system libraries</text>
+  <text x="416" y="102" fill="#46505f">• your code and its settings</text>
+  <text x="416" y="118" fill="#46505f">• a health-check tool</text>
+  <text x="416" y="140" fill="#14663f" font-weight="700">No compilers. No caches.</text>
+  <text x="416" y="156" fill="#14663f" font-weight="700">Nothing that can build code ships.</text>
+</svg>
+<figcaption>Build in one box, ship a different one. The compilers never reach production.</figcaption>
+</figure>
+
+<div class="box why">
+  <span class="box-title">Why this matters for security, not just size</span>
+  <p>Compilers are tools for turning source code into programs. If an attacker gets into your container, a compiler is one of the most useful things they could find — it lets them build their own tools inside your system.</p>
+  <p style="margin-top:2mm">Removing compilers from the shipped image is therefore both smaller <em>and</em> safer. This is a standard practice with a name — minimising the attack surface — and it is exactly what the two-stage build achieves almost for free.</p>
+</div>
+
+<h3>Four more decisions, each solving a real problem</h3>
+
+<table><thead><tr><th style="width:40mm">Decision</th><th>Problem it solves</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Install torch from the CPU-only source</strong></td>
+    <td>The default version of the machine-learning library ships with GPU support and pulls in roughly 2.5 GB of graphics-driver libraries. This service runs on a processor and never touches a GPU. Pointing the installer at the CPU-only source is one line, and removes gigabytes of dead weight. <em>Verified: zero GPU packages in the final image.</em></td>
+  </tr>
+  <tr>
+    <td><strong>Run as a non-root user</strong></td>
+    <td>By default, container programs run with full administrator rights. If someone finds a way in, they own everything. Running as an ordinary restricted user means a break-in is contained. Costs one line; is a genuine security boundary.</td>
+  </tr>
+  <tr>
+    <td><strong>Create the data folders as the service user</strong></td>
+    <td>Containers can only write to folders they are given, and a folder that does not already exist gets created by the administrator account. The service then cannot write to its own data directory. Creating the folders up front, owned by the right user, prevents a whole category of confusing permission failures.</td>
+  </tr>
+  <tr>
+    <td><strong>Check writability at build time</strong></td>
+    <td>One extra line that tries to write a file into each data folder during the build. If any folder is not writable, <strong>the build fails immediately</strong> — rather than the service failing at 2am. Failing fast, early, and loudly is almost always the right trade.</td>
+  </tr>
+</tbody></table>
+
+<h3>The health check that was deliberately removed</h3>
+
+<p>The Dockerfile contains a comment explaining something that is <em>not</em> there:</p>
+
+<pre><code><span class="c"># No HEALTHCHECK here, deliberately. This image is used by five different roles</span>
+<span class="c"># (init, api, drift, drift-publisher, backup) and only one of them serves HTTP,</span>
+<span class="c"># so an image-level healthcheck is wrong by construction.</span></code></pre>
+
+<div class="box warn">
+  <span class="box-title">What went wrong</span>
+  <p>The image originally had a health check that tried to reach a web address. Five different jobs use this image, but only <em>one</em> of them is a web service. The other four — the model builder, the drift job, the backup job — have no web address to check.</p>
+  <p style="margin-top:2mm">So four out of nine containers permanently reported <strong>"unhealthy"</strong> — while working perfectly. Worse, the command that starts everything up and waits for health checks <em>never returned</em>. Starting the project appeared to hang forever.</p>
+  <p style="margin-top:2mm"><strong>The fix:</strong> move health checks out of the image and into the file that describes the stack, where each service can be checked for what it actually does. A liveness check belongs to the thing being checked, not to the tool it was built with.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Docker is close to universal</strong> in backend, DevOps, platform and data roles. Understanding images versus containers, layers, and multi-stage builds is expected knowledge.</li>
+    <li><strong>Multi-stage builds</strong> are the standard way to keep production images small in any compiled language — Go, Rust, Java, C++.</li>
+    <li><strong>Running as non-root</strong> is required by many security policies and is a frequent security-review finding when missed.</li>
+    <li><strong>Failing the build rather than the runtime</strong> is a general principle: catch problems as early as possible, when they are cheap and obvious.</li>
+    <li><strong>Putting the check where the knowledge is</strong> — the health check next to the service definition, not in the shared image — is a design instinct that applies far beyond Docker.</li>
+  </ul>
+</div>
+</div>

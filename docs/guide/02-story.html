@@ -1,0 +1,217 @@
+<!-- ======================================================== CONTENTS -->
+<div class="part-start">
+<h1 class="part">What is in here, and how to read it</h1>
+
+<p class="lede">Ten minutes of reading here will save you hours later. This page explains the shape of the whole document, and the one habit that makes it easy.</p>
+
+<h2>The one habit</h2>
+
+<p>Every single part of this document answers <strong>four questions</strong> in the same order. Once you notice the pattern, you can skim any part and still get what matters:</p>
+
+<table><thead><tr><th style="width:32mm">Question</th><th>What it means</th></tr></thead><tbody>
+  <tr>
+    <td><strong>What is it?</strong></td>
+    <td>The plain-English name and a picture of the thing. No jargon on the first line, ever.</td>
+  </tr>
+  <tr>
+    <td><strong>Why did we need it?</strong></td>
+    <td>The problem that existed <em>before</em> it. This is the important one — tools only make sense as answers to problems.</td>
+  </tr>
+  <tr>
+    <td><strong>How does it work here?</strong></td>
+    <td>The specific details in this project, including the real file names and real numbers.</td>
+  </tr>
+  <tr>
+    <td><strong>Where will you use this again?</strong></td>
+    <td>Other jobs, other projects, other problems the same idea solves. This is the part that transfers.</td>
+  </tr>
+</tbody></table>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>Someone hands you a bicycle and says "this is a bicycle." That teaches you almost nothing. But if they say "before bicycles, people walked everywhere and it took all day to visit a friend; a bicycle fixes that" — now you understand bicycles, and you will also understand motorbikes, cars and trains. Tools are answers. Learn the question and you have learned the tool.</p>
+</div>
+
+<h2>Contents</h2>
+
+<div class="toc">
+<ol>
+  <li><span><span class="t">What is in here, and how to read it</span><br><span class="d">The habit, and the map</span></span></li>
+  <li><span><span class="t">The whole story in one page</span><br><span class="d">What this project is, in a single breath</span></span></li>
+  <li><span><span class="t">Sixteen words you need first</span><br><span class="d">The vocabulary, in plain language</span></span></li>
+  <li><span><span class="t">The brain: a machine that reads digits</span><br><span class="d">Neural networks, training, and why we picked a tiny one</span></span></li>
+  <li><span><span class="t">Three copies of the brain: the runtimes</span><br><span class="d">TorchScript, ONNX, and int8 — and what quantisation actually does</span></span></li>
+  <li><span><span class="t">The shop counter: the API</span><br><span class="d">How other programs ask your brain a question</span></span></li>
+  <li><span><span class="t">The race with a stopwatch: benchmarking</span><br><span class="d">Measuring speed honestly, which is much harder than it sounds</span></span></li>
+  <li><span><span class="t">How to avoid fooling yourself: the statistics</span><br><span class="d">Confidence intervals, noise floors, and the most honest result here</span></span></li>
+  <li><span><span class="t">The smoke alarm: drift detection</span><br><span class="d">Noticing when the world stops looking like the training data</span></span></li>
+  <li><span><span class="t">The photocopy you actually test: backup</span><br><span class="d">Why a backup you have never restored is not a backup</span></span></li>
+  <li><span><span class="t">The settings drawer, and the remote control</span><br><span class="d">Config files and <code>tasks.py</code></span></span></li>
+  <li><span><span class="t">The lunchbox: Docker</span><br><span class="d">Making software run the same on every computer</span></span></li>
+  <li><span><span class="t">The whole kitchen: Docker Compose</span><br><span class="d">Nine containers that start in the right order</span></span></li>
+  <li><span><span class="t">The dashboard and the alarm bell: monitoring</span><br><span class="d">Prometheus, Grafana, Alertmanager</span></span></li>
+  <li><span><span class="t">The robot installer: Ansible</span><br><span class="d">Setting up a hundred servers without doing it by hand</span></span></li>
+  <li><span><span class="t">The robot builder: Terraform</span><br><span class="d">Creating computers by writing down what you want</span></span></li>
+  <li><span><span class="t">The homework checker: CI/CD</span><br><span class="d">Robots that test your work before anyone sees it</span></span></li>
+  <li><span><span class="t">How we know it works: the tests</span><br><span class="d">255 checks, and the ones that matter most</span></span></li>
+  <li><span><span class="t">The whole picture</span><br><span class="d">Every piece on one diagram, and how a request flows through</span></span></li>
+  <li><span><span class="t">Twenty-one mistakes, and what each one teaches</span><br><span class="d">The most valuable part of this document</span></span></li>
+  <li><span><span class="t">Where you will use each of these things</span><br><span class="d">A table for every tool: what it is for, in your future jobs</span></span></li>
+  <li><span><span class="t">Glossary and command cheat sheet</span><br><span class="d">Every word, and every command, in one place</span></span></li>
+</ol>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <p>The four-question habit is not about this project. It is how you read <em>any</em> unfamiliar codebase, <em>any</em> tool you are handed at a new job, and <em>any</em> technology that did not exist last year. "What problem did this exist to solve?" is the single most useful question in software.</p>
+</div>
+</div>
+
+<!-- ======================================================== STORY -->
+<div class="part-start">
+<span class="part-num">PART 1</span>
+<h1 class="part">The whole story in one page</h1>
+
+<p class="lede">If you only read one page of this document, read this one.</p>
+
+<h2>The problem</h2>
+
+<p>Imagine you have taught a computer to recognise handwritten numbers. It looks at a small picture of a digit and says "that is a 7." Great. But a brain sitting in a file on your laptop helps nobody.</p>
+
+<p>To be <em>useful</em>, that brain has to become a <strong>service</strong> — something other programs can ask questions of, over the internet, all day and all night. And the moment you do that, a flood of new problems arrives, none of which are about machine learning at all:</p>
+
+<div class="cards">
+  <div class="card">
+    <h4>Which version is faster?</h4>
+    <p>There are several ways to run the same brain. Which one should we pay for in production? Guessing is not good enough.</p>
+  </div>
+  <div class="card">
+    <h4>Is it still correct?</h4>
+    <p>If we swap to a smaller, faster version, does it still get the right answers? Someone has to prove it, automatically.</p>
+  </div>
+  <div class="card">
+    <h4>What if the world changes?</h4>
+    <p>The brain learned from old pictures. What if new pictures look different? Nobody notices until the results are quietly wrong.</p>
+  </div>
+  <div class="card">
+    <h4>What if it breaks at 3am?</h4>
+    <p>Someone needs to be told. And someone needs to know the data can be brought back.</p>
+  </div>
+</div>
+
+<h2>The answer</h2>
+
+<p class="big-answer">This project is a small, complete, honest machine-learning service — plus every piece of engineering that a real one needs around it, and a benchmark harness that is allowed to tell you the truth, <em>including when the truth is "this measurement is not good enough to conclude anything."</em></p>
+
+<p>That last part is what makes it unusual. Most benchmarks are built to produce an impressive number. This one is built to produce a <em>defensible</em> one — and when the data does not support a conclusion, it says so out loud instead of picking the flattering reading.</p>
+
+<h2>How the pieces fit together</h2>
+
+<figure>
+<svg viewBox="0 0 720 330" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="11">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/>
+    </marker>
+  </defs>
+
+  <!-- row 1: build -->
+  <text x="12" y="18" font-size="10" font-weight="700" fill="#46505f" letter-spacing="1">1 · BUILD THE BRAIN (happens once, or once per release)</text>
+
+  <rect x="12" y="28" width="128" height="52" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="76" y="49" text-anchor="middle" font-weight="700" fill="#1e5fb4">Train</text>
+  <text x="76" y="64" text-anchor="middle" font-size="9" fill="#46505f">learns from 1,347</text>
+  <text x="76" y="75" text-anchor="middle" font-size="9" fill="#46505f">tiny pictures</text>
+
+  <rect x="168" y="28" width="150" height="52" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="243" y="49" text-anchor="middle" font-weight="700" fill="#1e5fb4">Export ×3</text>
+  <text x="243" y="64" text-anchor="middle" font-size="9" fill="#46505f">same brain, three</text>
+  <text x="243" y="75" text-anchor="middle" font-size="9" fill="#46505f">different containers</text>
+
+  <rect x="346" y="28" width="164" height="52" rx="5" fill="#fdeef3" stroke="#a3244b" stroke-width="1.4"/>
+  <text x="428" y="49" text-anchor="middle" font-weight="700" fill="#a3244b">Parity check</text>
+  <text x="428" y="64" text-anchor="middle" font-size="9" fill="#46505f">if the three disagree,</text>
+  <text x="428" y="75" text-anchor="middle" font-size="9" fill="#46505f">the build FAILS</text>
+
+  <rect x="538" y="28" width="170" height="52" rx="5" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.4"/>
+  <text x="623" y="49" text-anchor="middle" font-weight="700" fill="#5b3a9e">Drift reference</text>
+  <text x="623" y="64" text-anchor="middle" font-size="9" fill="#46505f">remembers what</text>
+  <text x="623" y="75" text-anchor="middle" font-size="9" fill="#46505f">"normal" looks like</text>
+
+  <path d="M140,54 L166,54" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M318,54 L344,54" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M510,54 L536,54" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- row 2: serve -->
+  <text x="12" y="118" font-size="10" font-weight="700" fill="#46505f" letter-spacing="1">2 · SERVE IT (happens every single second)</text>
+
+  <rect x="12" y="128" width="140" height="54" rx="5" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="82" y="150" text-anchor="middle" font-weight="700">A program</text>
+  <text x="82" y="165" text-anchor="middle" font-size="9" fill="#46505f">asks: "what digit</text>
+  <text x="82" y="176" text-anchor="middle" font-size="9" fill="#46505f">is this?"</text>
+
+  <rect x="182" y="128" width="150" height="54" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.6"/>
+  <text x="257" y="150" text-anchor="middle" font-weight="700" fill="#14663f">The API</text>
+  <text x="257" y="165" text-anchor="middle" font-size="9" fill="#46505f">the shop counter —</text>
+  <text x="257" y="176" text-anchor="middle" font-size="9" fill="#46505f">checks, then answers</text>
+
+  <rect x="362" y="128" width="150" height="54" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.6"/>
+  <text x="437" y="150" text-anchor="middle" font-weight="700" fill="#14663f">The runtime</text>
+  <text x="437" y="165" text-anchor="middle" font-size="9" fill="#46505f">does the actual</text>
+  <text x="437" y="176" text-anchor="middle" font-size="9" fill="#46505f">thinking</text>
+
+  <rect x="542" y="128" width="166" height="54" rx="5" fill="#f5f7fa" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="625" y="150" text-anchor="middle" font-weight="700">"It is a 7 (99.4%)"</text>
+  <text x="625" y="165" text-anchor="middle" font-size="9" fill="#46505f">answer goes back to</text>
+  <text x="625" y="176" text-anchor="middle" font-size="9" fill="#46505f">the program</text>
+
+  <path d="M152,155 L180,155" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M332,155 L360,155" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+  <path d="M512,155 L540,155" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar)"/>
+
+  <!-- row 3: watch -->
+  <text x="12" y="218" font-size="10" font-weight="700" fill="#46505f" letter-spacing="1">3 · WATCH IT, AND BE READY WHEN IT BREAKS</text>
+
+  <rect x="12" y="228" width="128" height="56" rx="5" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.4"/>
+  <text x="76" y="249" text-anchor="middle" font-weight="700" fill="#8a5200">Metrics</text>
+  <text x="76" y="264" text-anchor="middle" font-size="9" fill="#46505f">numbers about</text>
+  <text x="76" y="275" text-anchor="middle" font-size="9" fill="#46505f">what just happened</text>
+
+  <rect x="168" y="228" width="128" height="56" rx="5" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.4"/>
+  <text x="232" y="249" text-anchor="middle" font-weight="700" fill="#8a5200">Dashboards</text>
+  <text x="232" y="264" text-anchor="middle" font-size="9" fill="#46505f">the pictures a</text>
+  <text x="232" y="275" text-anchor="middle" font-size="9" fill="#46505f">human looks at</text>
+
+  <rect x="324" y="228" width="128" height="56" rx="5" fill="#fdeef3" stroke="#a3244b" stroke-width="1.4"/>
+  <text x="388" y="249" text-anchor="middle" font-weight="700" fill="#a3244b">Alerts</text>
+  <text x="388" y="264" text-anchor="middle" font-size="9" fill="#46505f">the bell that rings</text>
+  <text x="388" y="275" text-anchor="middle" font-size="9" fill="#46505f">when it goes wrong</text>
+
+  <rect x="480" y="228" width="110" height="56" rx="5" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.4"/>
+  <text x="535" y="249" text-anchor="middle" font-weight="700" fill="#5b3a9e">Drift</text>
+  <text x="535" y="264" text-anchor="middle" font-size="9" fill="#46505f">the world slowly</text>
+  <text x="535" y="275" text-anchor="middle" font-size="9" fill="#46505f">changing shape</text>
+
+  <rect x="618" y="228" width="90" height="56" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.4"/>
+  <text x="663" y="249" text-anchor="middle" font-weight="700" fill="#1e5fb4">Backup</text>
+  <text x="663" y="264" text-anchor="middle" font-size="9" fill="#46505f">and a test that</text>
+  <text x="663" y="275" text-anchor="middle" font-size="9" fill="#46505f">it restores</text>
+</svg>
+<figcaption>Three jobs, three rows. Building happens rarely; serving happens constantly; watching happens quietly in the background.</figcaption>
+</figure>
+
+<h2>The surprising ending</h2>
+
+<p>You might expect the story to finish with "and int8 was 3× faster, so we shipped it." It does not. It finishes like this:</p>
+
+<div class="box warn">
+  <span class="box-title">The honest result</span>
+  <p>The int8 copy of the brain really is <strong>3.5× smaller</strong> (151 KB instead of 535 KB) and just as accurate — those are solid facts. But whether it is <em>faster</em> at answering, this harness cannot say. The run-to-run variation on this machine, measured against itself, is a band from <strong>0.58× to 1.71×</strong>. Every speedup measured sits inside that band.</p>
+  <p style="margin-top:2mm"><strong>So the conclusion is:</strong> we proved the size and accuracy wins, and we proved we do <em>not</em> have the evidence to claim a speed win. A weaker project would have reported the biggest number it saw and moved on.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <p>Everywhere performance is discussed. "It is 40% faster" is one of the most common claims in software and one of the least often justified. Learning to ask "compared to what, measured how many times, and how much does the machine vary against itself?" will change how you read every benchmark you ever see — including the ones from companies selling you something.</p>
+</div>
+</div>

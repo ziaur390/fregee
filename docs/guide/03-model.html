@@ -1,0 +1,315 @@
+<!-- ======================================================== VOCAB -->
+<div class="part-start">
+<span class="part-num">PART 2</span>
+<h1 class="part">Sixteen words you need first</h1>
+
+<p class="lede">Every word below appears later in this document. Read them once now, and nothing further will confuse you. You do not need to memorise them — they are all repeated in the glossary at the end.</p>
+
+<h2>Words about the brain</h2>
+
+<table><thead><tr><th style="width:34mm">Word</th><th>What it means, plainly</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Model</strong></td>
+    <td>A computer program that has <em>learned</em> from examples instead of being told the rules. Here: one that recognises handwritten digits. Also called "the brain" in this document.</td>
+  </tr>
+  <tr>
+    <td><strong>Training</strong></td>
+    <td>Showing the model thousands of examples with the right answers attached, and letting it adjust itself until it gets them right. Like practising with a workbook that has the answers in the back.</td>
+  </tr>
+  <tr>
+    <td><strong>Neural network</strong></td>
+    <td>The particular style of model used here. It is a stack of very simple maths steps, each passing its result to the next. Nothing about it is like a real brain, despite the name.</td>
+  </tr>
+  <tr>
+    <td><strong>Weights</strong></td>
+    <td>The numbers inside the model that training adjusts. Training's entire output is a big pile of weights. Here: 136,586 of them.</td>
+  </tr>
+  <tr>
+    <td><strong>Parameters</strong></td>
+    <td>Another word for those same numbers. "A 136k-parameter model" means "a model with 136,000 adjustable numbers."</td>
+  </tr>
+  <tr>
+    <td><strong>Inference</strong></td>
+    <td>Using a trained model to answer a question. Training is the studying; inference is the exam. This document mostly cares about inference, because that is what production does millions of times.</td>
+  </tr>
+  <tr>
+    <td><strong>Accuracy</strong></td>
+    <td>The share of questions it got right. 0.9741 means 97.41 times out of 100.</td>
+  </tr>
+</tbody></table>
+
+<h2>Words about shipping it</h2>
+
+<table><thead><tr><th style="width:34mm">Word</th><th>What it means, plainly</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Runtime</strong></td>
+    <td>The program that <em>runs</em> the model — the engine, not the fuel. Different engines can run the same weights at different speeds.</td>
+  </tr>
+  <tr>
+    <td><strong>API</strong></td>
+    <td>Application Programming Interface. A fixed set of questions that one program agrees to answer for another. Like a restaurant menu: you do not walk into the kitchen, you order from the list.</td>
+  </tr>
+  <tr>
+    <td><strong>Endpoint</strong></td>
+    <td>One specific item on that menu — one address that does one thing. <code>/predict</code> is an endpoint.</td>
+  </tr>
+  <tr>
+    <td><strong>Latency</strong></td>
+    <td>How long one request takes, in milliseconds. Lower is better. The number everyone argues about.</td>
+  </tr>
+  <tr>
+    <td><strong>Throughput</strong></td>
+    <td>How many requests you can handle per second. Related to latency but not the same thing — like how a shop can be slow per customer but serve many customers at once.</td>
+  </tr>
+  <tr>
+    <td><strong>p50 / p95 / p99</strong></td>
+    <td>Percentiles. p50 is the middle request ("half are faster than this"). p99 is the slow one in a hundred. p99 matters most, because a slow request is often a broken one. Also the hardest to measure — see Part 7.</td>
+  </tr>
+  <tr>
+    <td><strong>Batch</strong></td>
+    <td>A group of questions sent together in one request. Usually faster per question than sending them one at a time, because some costs are paid once per batch rather than once per question.</td>
+  </tr>
+</tbody></table>
+
+<h2>Words about trusting the numbers</h2>
+
+<table><thead><tr><th style="width:34mm">Word</th><th>What it means, plainly</th></tr></thead><tbody>
+  <tr>
+    <td><strong>Reproducible</strong></td>
+    <td>Run it again, get the same answer. This is the single most important property of a benchmark and the easiest to lose by accident.</td>
+  </tr>
+  <tr>
+    <td><strong>Confidence interval</strong></td>
+    <td>A range that probably contains the true value. "1.23× [1.15, 1.31]" means the measured speedup is 1.23 and we are fairly sure the real one is between 1.15 and 1.31.</td>
+  </tr>
+  <tr>
+    <td><strong>Noise</strong></td>
+    <td>Random variation that has nothing to do with what you are measuring — a background program waking up, the processor getting warm. The enemy of Part 7.</td>
+  </tr>
+  <tr>
+    <td><strong>Drift</strong></td>
+    <td>When the real world slowly stops resembling the examples the model learned from, so its answers quietly get worse. <em>Drift</em> as a verb: the input distribution has drifted.</td>
+  </tr>
+</tbody></table>
+
+<div class="box why">
+  <span class="box-title">Why we needed this page</span>
+  <p>Technical writing usually fails at exactly one place: it uses a word the reader has never seen, on the assumption that the reader has seen it. Nobody admits confusion at that point; they just stop reading. Sixteen words is a small price for the rest of the document being readable.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <p>These sixteen words are the shared vocabulary of the entire industry. They appear in job advertisements, code reviews and interviews regardless of language, company or framework. Knowing them precisely — particularly the difference between latency and throughput, and between p50 and p99 — is the difference between sounding like you have used these tools and actually having used them.</p>
+</div>
+</div>
+
+<!-- ======================================================== MODEL -->
+<div class="part-start">
+<span class="part-num">PART 3</span>
+<h1 class="part">The brain: a machine that reads digits</h1>
+
+<p class="lede">Everything else in this project exists to serve this one small thing. So it is worth understanding it properly — and worth understanding why we deliberately made it small.</p>
+
+<h2>What is it?</h2>
+
+<p>A neural network that looks at a tiny 8×8 picture of a handwritten digit and says which digit it is, from 0 to 9. The picture is only 64 pixels — about the size of the icons on an old phone screen.</p>
+
+<div class="kpi">
+  <div><span class="n">8×8</span><span class="l">pixels per picture</span></div>
+  <div><span class="n">1,797</span><span class="l">pictures in the dataset</span></div>
+  <div><span class="n">136,586</span><span class="l">adjustable numbers</span></div>
+  <div><span class="n">97.41%</span><span class="l">correct on unseen pictures</span></div>
+  <div><span class="n">~4 s</span><span class="l">to train on a laptop</span></div>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>This project is not really about digit recognition. It is about the <em>machinery around</em> a model — how you serve it, measure it, watch it and protect it. But you cannot demonstrate machinery without something to put inside it.</p>
+  <p style="margin-top:2mm">So we needed <strong>a real model</strong> — one that genuinely trains and genuinely predicts — that was <strong>also small enough</strong> to make every other part of the project practical. Those two requirements pull against each other, and the whole design of the model is the compromise between them.</p>
+</div>
+
+<h3>Why not use a big impressive model?</h3>
+
+<p>This is the most important design decision in the project, so here is the reasoning spelled out.</p>
+
+<table><thead><tr><th style="width:44mm">If we used a large model</th><th>What would break</th></tr></thead><tbody>
+  <tr>
+    <td>Training takes hours on a GPU</td>
+    <td>Nobody can run it to check your work. Every claim becomes "trust me, it worked on my machine."</td>
+  </tr>
+  <tr>
+    <td>It costs money to run</td>
+    <td>The project's rule is <strong>zero cost</strong>. A free-tier machine cannot train a large model.</td>
+  </tr>
+  <tr>
+    <td>It needs to download gigabytes</td>
+    <td>The benchmark would be measuring your internet connection on the first run and nothing on later runs.</td>
+  </tr>
+  <tr>
+    <td>The model file is hundreds of megabytes</td>
+    <td>Comparing "535 KB vs 151 KB" would be a rounding error lost in the noise. The size experiment would prove nothing.</td>
+  </tr>
+  <tr>
+    <td>Timing differences get large</td>
+    <td>Sounds good — but then the benchmark's careful statistics have nothing interesting to say. The interesting lesson is precisely that <em>small differences are hard to measure</em>.</td>
+  </tr>
+</tbody></table>
+
+<p class="big-answer">The model is small on purpose. The model is not the subject of this project; the rigour around it is.</p>
+
+<h2>How does it work here?</h2>
+
+<h3>The data</h3>
+
+<p>The pictures come from <code>sklearn.datasets.load_digits</code>, which is bundled inside an already-installed library. Two consequences, both deliberate:</p>
+
+<ul>
+  <li><strong>No download.</strong> The benchmark works with the network switched off, on a plane, or inside a locked-down build machine that is not allowed to fetch anything.</li>
+  <li><strong>Identical for everyone.</strong> If the data were downloaded, two people could silently get different versions and their results would not be comparable. Here, "run it again and get the same answer" is true by construction.</li>
+</ul>
+
+<h3>Splitting the data — and one mistake that ruins everything</h3>
+
+<p>The 1,797 pictures are divided into three groups:</p>
+
+<table><thead><tr><th style="width:26mm">Group</th><th style="width:20mm">Share</th><th>What it is for</th></tr></thead><tbody>
+  <tr><td><strong>Train</strong></td><td>70%</td><td>The workbook with answers. The model learns from these.</td></tr>
+  <tr><td><strong>Validation</strong></td><td>15%</td><td>A mock exam, used while tuning. The model never learns from these directly.</td></tr>
+  <tr><td><strong>Test</strong></td><td>15%</td><td>The real exam, opened once at the end. This is where "97.41% accurate" comes from.</td></tr>
+</tbody></table>
+
+<div class="box warn">
+  <span class="box-title">The mistake this avoids — data leakage</span>
+  <p>Suppose you wanted to make the numbers look good. You could let the model see the test pictures during training. It would then score ~100% on the test — and be useless in the real world, because in the real world it will never see those pictures again.</p>
+  <p style="margin-top:2mm">This is called <strong>leakage</strong>, and it is the single most common way machine-learning results become fiction. It is rarely done on purpose. It happens by accident, and it is invisible in the output — the numbers just look slightly too good.</p>
+  <p style="margin-top:2mm">There is a subtle version of it in this project. The pictures are normalised (rescaled) by dividing by 16. If that rescaling had been computed over <em>all</em> the pictures including the test ones, the test data would have influenced the model's inputs — a tiny leak, and a leak all the same. In <code>src/mlserve/model.py</code> the statistics come from the <strong>training split only</strong>, and the code comments say why.</p>
+</div>
+
+<h3>The network itself</h3>
+
+<p>The architecture is two "convolution" layers followed by a small decision layer. Convolution is the trick that made image recognition work: instead of looking at all 64 pixels at once, the network slides a small 3×3 window across the picture looking for tiny local patterns — an edge, a corner, a stroke. Then it looks for patterns among those patterns.</p>
+
+<figure>
+<svg viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="10">
+  <!-- input -->
+  <text x="30" y="16" font-weight="700" font-size="10" fill="#46505f">INPUT</text>
+  <g>
+    <rect x="18" y="26" width="72" height="72" fill="#fff" stroke="#1e5fb4" stroke-width="1.2"/>
+    <g fill="#1e5fb4">
+      <rect x="26" y="34" width="8" height="8" opacity=".15"/><rect x="34" y="34" width="8" height="8" opacity=".15"/><rect x="42" y="34" width="8" height="8" opacity=".55"/><rect x="50" y="34" width="8" height="8" opacity=".55"/><rect x="58" y="34" width="8" height="8" opacity=".15"/><rect x="66" y="34" width="8" height="8" opacity=".15"/><rect x="74" y="34" width="8" height="8" opacity=".15"/>
+      <rect x="26" y="42" width="8" height="8" opacity=".15"/><rect x="34" y="42" width="8" height="8" opacity=".55"/><rect x="42" y="42" width="8" height="8" opacity=".95"/><rect x="50" y="42" width="8" height="8" opacity=".95"/><rect x="58" y="42" width="8" height="8" opacity=".55"/><rect x="66" y="42" width="8" height="8" opacity=".15"/><rect x="74" y="42" width="8" height="8" opacity=".15"/>
+      <rect x="26" y="50" width="8" height="8" opacity=".15"/><rect x="34" y="50" width="8" height="8" opacity=".55"/><rect x="42" y="50" width="8" height="8" opacity=".95"/><rect x="50" y="50" width="8" height="8" opacity=".95"/><rect x="58" y="50" width="8" height="8" opacity=".55"/><rect x="66" y="50" width="8" height="8" opacity=".15"/><rect x="74" y="50" width="8" height="8" opacity=".15"/>
+      <rect x="26" y="58" width="8" height="8" opacity=".15"/><rect x="34" y="58" width="8" height="8" opacity=".15"/><rect x="42" y="58" width="8" height="8" opacity=".55"/><rect x="50" y="58" width="8" height="8" opacity=".55"/><rect x="58" y="58" width="8" height="8" opacity=".95"/><rect x="66" y="58" width="8" height="8" opacity=".55"/><rect x="74" y="58" width="8" height="8" opacity=".15"/>
+      <rect x="26" y="66" width="8" height="8" opacity=".15"/><rect x="34" y="66" width="8" height="8" opacity=".15"/><rect x="42" y="66" width="8" height="8" opacity=".15"/><rect x="50" y="66" width="8" height="8" opacity=".15"/><rect x="58" y="66" width="8" height="8" opacity=".55"/><rect x="66" y="66" width="8" height="8" opacity=".95"/><rect x="74" y="66" width="8" height="8" opacity=".55"/>
+      <rect x="26" y="74" width="8" height="8" opacity=".15"/><rect x="34" y="74" width="8" height="8" opacity=".15"/><rect x="42" y="74" width="8" height="8" opacity=".15"/><rect x="50" y="74" width="8" height="8" opacity=".15"/><rect x="58" y="74" width="8" height="8" opacity=".15"/><rect x="66" y="74" width="8" height="8" opacity=".15"/><rect x="74" y="74" width="8" height="8" opacity=".15"/>
+      <rect x="26" y="82" width="8" height="8" opacity=".15"/><rect x="34" y="82" width="8" height="8" opacity=".15"/><rect x="42" y="82" width="8" height="8" opacity=".15"/><rect x="50" y="82" width="8" height="8" opacity=".15"/><rect x="58" y="82" width="8" height="8" opacity=".15"/><rect x="66" y="82" width="8" height="8" opacity=".15"/><rect x="74" y="82" width="8" height="8" opacity=".15"/>
+    </g>
+  </g>
+  <text x="54" y="112" text-anchor="middle" font-size="9" fill="#46505f">a "7"</text>
+
+  <path d="M96,62 L128,62" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar2)"/>
+  <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <!-- conv1 -->
+  <text x="132" y="16" font-weight="700" font-size="10" fill="#46505f">FIND SMALL SHAPES</text>
+  <rect x="132" y="26" width="72" height="72" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.2"/>
+  <g fill="#1e5fb4" opacity=".45">
+    <rect x="140" y="34" width="16" height="16"/><rect x="164" y="34" width="16" height="16"/><rect x="188" y="34" width="16" height="16"/>
+    <rect x="140" y="58" width="16" height="16"/><rect x="164" y="58" width="16" height="16"/><rect x="188" y="58" width="16" height="16"/>
+    <rect x="140" y="82" width="16" height="16"/><rect x="164" y="82" width="16" height="16"/><rect x="188" y="82" width="16" height="16"/>
+  </g>
+  <text x="168" y="112" text-anchor="middle" font-size="9" fill="#46505f">16 maps of edges</text>
+
+  <path d="M210,62 L242,62" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar2)"/>
+
+  <!-- conv2 -->
+  <text x="246" y="16" font-weight="700" font-size="10" fill="#46505f">FIND SHAPES OF SHAPES</text>
+  <rect x="246" y="26" width="72" height="72" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.2"/>
+  <g fill="#1e5fb4" opacity=".6">
+    <rect x="254" y="34" width="11" height="11"/><rect x="270" y="34" width="11" height="11"/><rect x="286" y="34" width="11" height="11"/><rect x="302" y="34" width="11" height="11"/>
+    <rect x="254" y="50" width="11" height="11"/><rect x="270" y="50" width="11" height="11"/><rect x="286" y="50" width="11" height="11"/><rect x="302" y="50" width="11" height="11"/>
+    <rect x="254" y="66" width="11" height="11"/><rect x="270" y="66" width="11" height="11"/><rect x="286" y="66" width="11" height="11"/><rect x="302" y="66" width="11" height="11"/>
+    <rect x="254" y="82" width="11" height="11"/><rect x="270" y="82" width="11" height="11"/><rect x="286" y="82" width="11" height="11"/><rect x="302" y="82" width="11" height="11"/>
+  </g>
+  <text x="282" y="112" text-anchor="middle" font-size="9" fill="#46505f">32 maps</text>
+
+  <path d="M324,62 L356,62" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar2)"/>
+
+  <!-- head -->
+  <text x="360" y="16" font-weight="700" font-size="10" fill="#46505f">DECIDE</text>
+  <rect x="360" y="44" width="110" height="38" rx="4" fill="#ecf7f0" stroke="#14663f" stroke-width="1.3"/>
+  <text x="415" y="68" text-anchor="middle" font-size="9" fill="#14663f">flatten → 64 → 10</text>
+  <text x="415" y="112" text-anchor="middle" font-size="9" fill="#46505f">one score per digit</text>
+
+  <path d="M476,62 L508,62" stroke="#7a8798" stroke-width="1.4" marker-end="url(#ar2)"/>
+
+  <!-- output -->
+  <text x="512" y="16" font-weight="700" font-size="10" fill="#46505f">ANSWER</text>
+  <g font-size="8.5">
+    <rect x="512" y="30" width="96" height="13" rx="2" fill="#f5f7fa" stroke="#d7dde5"/>
+    <text x="516" y="40" fill="#46505f">0</text>
+    <rect x="512" y="45" width="96" height="13" rx="2" fill="#f5f7fa" stroke="#d7dde5"/>
+    <text x="516" y="55" fill="#46505f">1</text>
+    <rect x="512" y="60" width="96" height="13" rx="2" fill="#ecf7f0" stroke="#14663f" stroke-width="1.6"/>
+    <text x="516" y="70" fill="#14663f" font-weight="700">7  ← 99.4%</text>
+    <rect x="512" y="75" width="96" height="13" rx="2" fill="#f5f7fa" stroke="#d7dde5"/>
+    <text x="516" y="85" fill="#46505f">8</text>
+    <rect x="512" y="90" width="96" height="13" rx="2" fill="#f5f7fa" stroke="#d7dde5"/>
+    <text x="516" y="100" fill="#46505f">9</text>
+  </g>
+</svg>
+<figcaption>The whole model: find small shapes, find shapes made of those shapes, then decide. Four layers, 136,586 numbers.</figcaption>
+</figure>
+
+<h3>Why the model is shaped this way</h3>
+
+<table><thead><tr><th style="width:40mm">Choice</th><th>Reason</th></tr></thead><tbody>
+  <tr>
+    <td>Two convolution layers, not twenty</td>
+    <td>It has to be simple enough that the exported ONNX file is readable when opened in a graph viewer. A 50-layer network produces a diagram nobody can check.</td>
+  </tr>
+  <tr>
+    <td>Padding of 1 on the 3×3 windows</td>
+    <td>Keeps the picture 8×8 throughout, so the arithmetic is easy to follow. It also means the flatten step has a predictable size.</td>
+  </tr>
+  <tr>
+    <td>Plain code, no clever tricks</td>
+    <td><code>torch.jit.script</code> (Part 4) compiles this to a standalone file. It refuses to compile unusual or highly dynamic code. Writing boring code here makes the export work.</td>
+  </tr>
+  <tr>
+    <td>Dropout of 0.1</td>
+    <td>Randomly ignores 10% of connections during training, which stops the model memorising the training pictures. This is the standard guard against overfitting — being good at the workbook and bad at the exam.</td>
+  </tr>
+  <tr>
+    <td>Seed 1337 everywhere</td>
+    <td>Computers generate "random" numbers from a starting value. Fix that value and the randomness repeats exactly. It is the difference between a rerun and a different run.</td>
+  </tr>
+</tbody></table>
+
+<h3>About the seed — a small idea with big consequences</h3>
+
+<div class="box why">
+  <span class="box-title">Why we needed a seed</span>
+  <p>Training involves randomness: the order pictures are shown, the initial weights, the dropout mask. Without a fixed starting point, running training twice gives two slightly different models — and then two slightly different accuracies, and no way to tell whether a change you made mattered or whether you just got a luckier shuffle.</p>
+  <p style="margin-top:2mm">Fixing the seed makes every run identical. It is the foundation of the entire reproducibility claim: <strong>the same command produces the same numbers, on your machine and mine.</strong></p>
+</div>
+
+<div class="box warn">
+  <span class="box-title">A trap we hit: the seed that was not being set</span>
+  <p>A subtler version of this bit us in the benchmark. Python deliberately randomises certain internal hash values <em>every time it starts</em> — a security feature, so that an attacker cannot predict them. Our benchmark was using those values to decide which pictures to time.</p>
+  <p style="margin-top:2mm">The result: each run timed a <em>different sequence of pictures</em>, so two runs of the identical command were not comparable, and the difference was indistinguishable from ordinary timing noise. It looked like normal measurement wobble. It was a bug.</p>
+  <p style="margin-top:2mm">The fix: replace the built-in hashing with SHA-256, which is identical in every process and every version of Python. See Part 21 for the full story.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Train/test splitting and leakage</strong> apply to every model you ever build, in any framework. The accidental version — computing a scaling factor or a filter over all your data — is the one that catches people.</li>
+    <li><strong>Random seeds</strong> matter in any reproducible work: simulations, tests that involve randomness, data splitting, anywhere a result depends on a shuffle.</li>
+    <li><strong>Deliberately choosing a small model</strong> to make everything else testable is a professional judgement, not a shortcut. Being able to explain <em>why</em> the small model is the right choice is what distinguishes engineering from showing off.</li>
+    <li><strong>Convolution</strong> — looking for small local patterns and combining them — is the idea behind virtually all image and audio models in use today.</li>
+  </ul>
+</div>
+</div>

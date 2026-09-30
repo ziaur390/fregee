@@ -1,0 +1,336 @@
+<!-- ======================================================== FUTURE USE -->
+<div class="part-start">
+<span class="part-num">PART 20</span>
+<h1 class="part">Where you will use each of these things</h1>
+
+<p class="lede">Every tool in this project, and the real-world problems it solves elsewhere. This is the transferable part — what you take with you when you leave this repository behind.</p>
+
+<table><thead><tr>
+    <th style="width:30mm">Thing</th>
+    <th style="width:40mm">What it is really for</th>
+    <th>Where you will meet it again</th>
+  </tr></thead><tbody>
+  <tr>
+    <td><strong>PyTorch</strong></td>
+    <td>Building and training models</td>
+    <td>Research, computer vision, natural language processing, recommendation systems, forecasting. The dominant framework in industry and academia.</td>
+  </tr>
+  <tr>
+    <td><strong>ONNX</strong></td>
+    <td>Moving a model between tools</td>
+    <td>Running models in browsers, phone apps, C++ and Rust programs, or on specialised hardware. Anywhere your training framework is not available.</td>
+  </tr>
+  <tr>
+    <td><strong>int8 compression</strong></td>
+    <td>Making models smaller and cheaper</td>
+    <td>On-device machine learning, embedded systems, edge devices, anywhere memory or bandwidth is limited. Also used to reduce cloud inference costs.</td>
+  </tr>
+  <tr>
+    <td><strong>FastAPI</strong></td>
+    <td>Turning code into a web service</td>
+    <td>Backend APIs, microservices, internal tools, data services. One of the most common Python web frameworks in new projects.</td>
+  </tr>
+  <tr>
+    <td><strong>Liveness vs readiness</strong></td>
+    <td>Letting systems know your state honestly</td>
+    <td>Kubernetes, Docker Swarm, cloud load balancers, service meshes. Getting this wrong is one of the top causes of production outages.</td>
+  </tr>
+  <tr>
+    <td><strong>Benchmarking</strong></td>
+    <td>Deciding between options with evidence</td>
+    <td>Database selection, framework choices, hardware sizing, cloud instance types, compiler flags, query tuning. Any decision where "it feels faster" is not good enough.</td>
+  </tr>
+  <tr>
+    <td><strong>Confidence intervals</strong></td>
+    <td>Quantifying uncertainty</td>
+    <td>A/B testing, capacity planning, load testing, forecast accuracy, survey analysis. Anywhere a single number would be misleading.</td>
+  </tr>
+  <tr>
+    <td><strong>Bootstrapping</strong></td>
+    <td>Uncertainty without assuming a distribution</td>
+    <td>Latency analysis, financial modelling, biological data, any measurement with a long tail. The modern default because it makes fewer assumptions.</td>
+  </tr>
+  <tr>
+    <td><strong>PSI / drift detection</strong></td>
+    <td>Noticing when reality changes</td>
+    <td>Fraud detection, credit risk, ad targeting, medical monitoring, demand forecasting, predictive maintenance. Any model deployed into a world that keeps moving.</td>
+  </tr>
+  <tr>
+    <td><strong>Verified restore</strong></td>
+    <td>Knowing your data can actually come back</td>
+    <td>Every system with data worth keeping. Required by most compliance regimes, and the first thing asked about in any serious operational review.</td>
+  </tr>
+  <tr>
+    <td><strong>Checksums</strong></td>
+    <td>Detecting silent corruption</td>
+    <td>Package managers, container registries, downloads, backups, data pipelines, version control, filesystem integrity.</td>
+  </tr>
+  <tr>
+    <td><strong>Docker</strong></td>
+    <td>Consistent software environments</td>
+    <td>Nearly all backend and data work. Local development, testing, deployment, batch jobs, CI.</td>
+  </tr>
+  <tr>
+    <td><strong>Docker Compose</strong></td>
+    <td>Describing a multi-part system</td>
+    <td>Local development environments, integration testing, small production deployments, demos.</td>
+  </tr>
+  <tr>
+    <td><strong>Prometheus</strong></td>
+    <td>Storing and querying metrics</td>
+    <td>Infrastructure and application monitoring at almost any scale. Its query language is a widely-required skill.</td>
+  </tr>
+  <tr>
+    <td><strong>Grafana</strong></td>
+    <td>Visualising what is happening</td>
+    <td>Every operations team, dashboards for business metrics, incident investigation, capacity planning.</td>
+  </tr>
+  <tr>
+    <td><strong>Alertmanager</strong></td>
+    <td>Deciding who to disturb and when</td>
+    <td>On-call systems, incident response, escalation policies. The difference between alerting that helps and alerting people turn off.</td>
+  </tr>
+  <tr>
+    <td><strong>Ansible</strong></td>
+    <td>Configuring servers consistently</td>
+    <td>Server provisioning, configuration management, deployment automation, compliance enforcement across fleets.</td>
+  </tr>
+  <tr>
+    <td><strong>Terraform</strong></td>
+    <td>Creating infrastructure from a description</td>
+    <td>Cloud provisioning on AWS, Azure, Google Cloud or any of dozens of providers. The standard tool for infrastructure as code.</td>
+  </tr>
+  <tr>
+    <td><strong>GitHub Actions</strong></td>
+    <td>Automating checks and releases</td>
+    <td>Every professional software team. Testing, building, publishing, deploying, security scanning.</td>
+  </tr>
+  <tr>
+    <td><strong>Ruff</strong></td>
+    <td>Catching style and simple bugs automatically</td>
+    <td>Python projects of all sizes. Replacing several older tools because it is dramatically faster.</td>
+  </tr>
+  <tr>
+    <td><strong>pytest</strong></td>
+    <td>Proving your code does what you think</td>
+    <td>Universally used in Python. The skill of <em>what</em> to test matters far more than the framework.</td>
+  </tr>
+  <tr>
+    <td><strong>Automated dependency updates</strong></td>
+    <td>Staying current and secure</td>
+    <td>Any maintained codebase. Most breaches exploit known vulnerabilities in outdated dependencies, so this is a genuine security control, not housekeeping.</td>
+  </tr>
+</tbody></table>
+
+<h2>Skills, not tools</h2>
+
+<p>Tools change. These do not, and this project exercises all of them:</p>
+
+<div class="cards">
+  <div class="card">
+    <h4>Reading before writing</h4>
+    <p>Understanding the whole flow before changing anything. The single biggest difference between a fix and a new bug.</p>
+  </div>
+  <div class="card">
+    <h4>Measuring instead of guessing</h4>
+    <p>Reaching for evidence before opinion — and being willing to report that the evidence is inconclusive.</p>
+  </div>
+  <div class="card">
+    <h4>Designing for failure</h4>
+    <p>Asking "what happens when this breaks?" at design time rather than discovery time.</p>
+  </div>
+  <div class="card">
+    <h4>Being honest about limits</h4>
+    <p>Stating what was not tested, what could not be resolved, and what you got wrong. This is rare enough to be a differentiator.</p>
+  </div>
+  <div class="card">
+    <h4>Making the cheap choice deliberately</h4>
+    <p>Not every problem deserves a sophisticated solution. Knowing when something is good enough — and being able to justify it — is senior-level judgement.</p>
+  </div>
+  <div class="card">
+    <h4>Writing for the next person</h4>
+    <p>Comments that explain <em>why</em>, not <em>what</em>. Documentation that states limitations. The person you are helping is usually future-you.</p>
+  </div>
+</div>
+</div>
+
+<!-- ======================================================== GLOSSARY -->
+<div class="part-start">
+<span class="part-num">PART 21</span>
+<h1 class="part">Glossary</h1>
+
+<p class="lede">Every term used in this document, in one place. Alphabetical, so you can jump straight to the one you have forgotten.</p>
+
+<table><thead><tr><th style="width:42mm">Term</th><th>Plain meaning</th></tr></thead><tbody>
+  <tr><td><strong>Accuracy</strong></td><td>Share of predictions that were correct. 0.9741 means 97.41%.</td></tr>
+  <tr><td><strong>Alert</strong></td><td>An automatic notification that something needs attention.</td></tr>
+  <tr><td><strong>Alertmanager</strong></td><td>The program that decides who to notify when a monitoring rule fires, and stops repeats.</td></tr>
+  <tr><td><strong>Ansible</strong></td><td>A tool that configures computers from a written description, safely repeatable.</td></tr>
+  <tr><td><strong>API</strong></td><td>A fixed set of questions one program agrees to answer for another.</td></tr>
+  <tr><td><strong>Artifact</strong></td><td>A file produced by a build process — here, the exported model files.</td></tr>
+  <tr><td><strong>Batch</strong></td><td>Several items sent together in one request.</td></tr>
+  <tr><td><strong>Bootstrap</strong></td><td>Estimating uncertainty by resampling your existing data many times.</td></tr>
+  <tr><td><strong>Checksum</strong></td><td>A short code computed from a file's contents. If the file changes at all, the code changes. Used to detect corruption.</td></tr>
+  <tr><td><strong>CI / Continuous Integration</strong></td><td>Running automatic checks on every change.</td></tr>
+  <tr><td><strong>Concurrency</strong></td><td>Several things happening at the same time.</td></tr>
+  <tr><td><strong>Confidence interval</strong></td><td>A range that probably contains the true value.</td></tr>
+  <tr><td><strong>Container</strong></td><td>A sealed package of a program plus everything it needs to run.</td></tr>
+  <tr><td><strong>Drift</strong></td><td>When real-world data gradually stops resembling the data a model learned from.</td></tr>
+  <tr><td><strong>Docker</strong></td><td>The most common tool for building and running containers.</td></tr>
+  <tr><td><strong>Endpoint</strong></td><td>One specific address that performs one specific job.</td></tr>
+  <tr><td><strong>Environment variable</strong></td><td>A named setting passed to a program when it starts.</td></tr>
+  <tr><td><strong>fp32</strong></td><td>The standard way to store model numbers: high precision, 4 bytes each.</td></tr>
+  <tr><td><strong>FastAPI</strong></td><td>A Python framework for building web services; generates documentation automatically.</td></tr>
+  <tr><td><strong>Grafana</strong></td><td>A program that draws stored numbers as charts and dashboards.</td></tr>
+  <tr><td><strong>Histogram</strong></td><td>A record of how many values fell into each of several ranges. How latency distributions are stored.</td></tr>
+  <tr><td><strong>HTTP</strong></td><td>The language web browsers and services use to talk to each other.</td></tr>
+  <tr><td><strong>Idempotent</strong></td><td>Safe to run repeatedly: doing it twice has the same effect as doing it once.</td></tr>
+  <tr><td><strong>Inference</strong></td><td>Using a trained model to answer a question. The exam, not the studying.</td></tr>
+  <tr><td><strong>int8</strong></td><td>Storing model numbers as small whole numbers: less precise, but a quarter of the size.</td></tr>
+  <tr><td><strong>JSON</strong></td><td>A simple text format for structured data — the standard way services exchange information.</td></tr>
+  <tr><td><strong>KS test</strong></td><td>A statistical test for whether two sets of values differ. Sensitive to sample size, so used here only as supporting evidence.</td></tr>
+  <tr><td><strong>Latency</strong></td><td>How long one request takes.</td></tr>
+  <tr><td><strong>Liveness</strong></td><td>"Is this process still running?" Failure means restart it.</td></tr>
+  <tr><td><strong>Metric</strong></td><td>A number recorded over time so it can be watched.</td></tr>
+  <tr><td><strong>Model</strong></td><td>A program that learned from examples rather than being told rules.</td></tr>
+  <tr><td><strong>Neural network</strong></td><td>A stack of simple maths steps, each passing its result to the next.</td></tr>
+  <tr><td><strong>Noise floor</strong></td><td>The smallest difference an instrument can reliably detect. Measured here by comparing identical things.</td></tr>
+  <tr><td><strong>ONNX</strong></td><td>A common format for models, so different tools can run the same one.</td></tr>
+  <tr><td><strong>Overfitting</strong></td><td>Being excellent at the practice questions and bad at the real exam.</td></tr>
+  <tr><td><strong>p50 / p95 / p99</strong></td><td>Percentiles: the middle request, the slowest 1 in 20, the slowest 1 in 100.</td></tr>
+  <tr><td><strong>Parity check</strong></td><td>Proving two versions of the same thing behave identically.</td></tr>
+  <tr><td><strong>Percentile</strong></td><td>The value below which a given share of observations fall.</td></tr>
+  <tr><td><strong>Prometheus</strong></td><td>A program that collects and stores metrics over time.</td></tr>
+  <tr><td><strong>PSI</strong></td><td>Population Stability Index. A number describing how much a distribution has shifted. Sample-size independent, so it is what decides here.</td></tr>
+  <tr><td><strong>Quantisation</strong></td><td>Storing numbers with less precision to save space. "About 1.4 metres" instead of "1.4273 metres".</td></tr>
+  <tr><td><strong>Readiness</strong></td><td>"Can this serve traffic right now?" Failure means stop sending requests, not restart.</td></tr>
+  <tr><td><strong>Reproducible</strong></td><td>Running it again produces the same result.</td></tr>
+  <tr><td><strong>Runtime</strong></td><td>The program that runs a model — the engine, not the fuel.</td></tr>
+  <tr><td><strong>Seed</strong></td><td>The starting value for a random number generator. Fix it and the randomness repeats exactly.</td></tr>
+  <tr><td><strong>SQLite</strong></td><td>A database that lives entirely in one file. No server to run.</td></tr>
+  <tr><td><strong>Systemd timer</strong></td><td>A Linux feature for running a command on a schedule.</td></tr>
+  <tr><td><strong>Terraform</strong></td><td>A tool that creates cloud infrastructure from a written description.</td></tr>
+  <tr><td><strong>Throughput</strong></td><td>How many requests can be handled per second.</td></tr>
+  <tr><td><strong>TorchScript</strong></td><td>A frozen, standalone version of a PyTorch model that does not need your Python code.</td></tr>
+  <tr><td><strong>Training</strong></td><td>Showing a model many examples with correct answers so it adjusts itself.</td></tr>
+  <tr><td><strong>Variance</strong></td><td>How much measurements spread out. High variance means noisy.</td></tr>
+  <tr><td><strong>Volume (Docker)</strong></td><td>A storage area that outlives containers.</td></tr>
+  <tr><td><strong>Weights / parameters</strong></td><td>The adjustable numbers inside a model. Training's entire output.</td></tr>
+  <tr><td><strong>Wilson interval</strong></td><td>A confidence interval for a percentage that stays inside 0–100%, unlike the simpler method.</td></tr>
+  <tr><td><strong>YAML</strong></td><td>A human-friendly text format for settings files.</td></tr>
+</tbody></table>
+</div>
+
+<!-- ======================================================== CHEAT SHEET -->
+<div class="part-start">
+<span class="part-num">PART 22</span>
+<h1 class="part">Command cheat sheet</h1>
+
+<p class="lede">Everything you can do with this project, in the order you would normally do it. The reason the task runner exists (Part 10) is that these are the only commands you need to remember.</p>
+
+<h2>Getting started</h2>
+
+<pre><code><span class="c"># Get the code and install what it needs</span>
+git clone git@github.com:ziaur390/mlserve-ops.git
+cd mlserve-ops
+python tasks.py install
+
+<span class="c"># Build the model: train it, export three runtimes, build the drift reference</span>
+python tasks.py pipeline</code></pre>
+
+<h2>Everyday commands</h2>
+
+<table><thead><tr><th style="width:44mm">Command</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>python tasks.py</code></td><td>List every available command with a description. <em>Start here.</em></td></tr>
+  <tr><td><code>python tasks.py test</code></td><td>Run all 255 checks (fast ones).</td></tr>
+  <tr><td><code>python tasks.py test-all</code></td><td>Run everything, including checks that need Docker.</td></tr>
+  <tr><td><code>python tasks.py lint</code></td><td>Check code style and catch simple mistakes.</td></tr>
+  <tr><td><code>python tasks.py format</code></td><td>Fix style problems automatically.</td></tr>
+  <tr><td><code>python tasks.py cov</code></td><td>Run checks and show which lines are not covered.</td></tr>
+</tbody></table>
+
+<h2>Working with the model</h2>
+
+<table><thead><tr><th style="width:44mm">Command</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>python tasks.py train</code></td><td>Train the model from scratch (~4 seconds).</td></tr>
+  <tr><td><code>python tasks.py export</code></td><td>Produce the three runtimes, and fail if they disagree.</td></tr>
+  <tr><td><code>python tasks.py reference</code></td><td>Rebuild what "normal input" looks like, for drift detection.</td></tr>
+  <tr><td><code>python tasks.py pipeline</code></td><td>All three of the above, in order.</td></tr>
+  <tr><td><code>python tasks.py serve</code></td><td>Run the API locally with auto-reload, for development.</td></tr>
+</tbody></table>
+
+<h2>Measuring</h2>
+
+<table><thead><tr><th style="width:44mm">Command</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>python tasks.py bench</code></td><td>Run the full benchmark. Writes <span class="filepath">results/raw.csv</span>.</td></tr>
+  <tr><td><code>python tasks.py report</code></td><td>Build the report and charts from that CSV.</td></tr>
+  <tr><td><code>MLSERVE_BENCH_CALLS=10 python tasks.py bench</code></td><td>A quick run, for checking things work.</td></tr>
+</tbody></table>
+
+<h2>Operations</h2>
+
+<table><thead><tr><th style="width:52mm">Command</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>python tasks.py drift</code></td><td>Run drift detection once. Exit code 2 means "drift found" — a finding, not a failure.</td></tr>
+  <tr><td><code>python tasks.py seed</code></td><td>Insert synthetic requests, so the backup drill has data.</td></tr>
+  <tr><td><code>python tasks.py backup</code></td><td>Create a dated archive with checksums.</td></tr>
+  <tr><td><code>python tasks.py restore-verify</code></td><td>Restore the newest archive and prove every row matches.</td></tr>
+  <tr><td><code>python tasks.py backup-list</code></td><td>List existing archives.</td></tr>
+  <tr><td><code>python tasks.py smoke</code></td><td>Check the running stack actually answers on its endpoints.</td></tr>
+</tbody></table>
+
+<h2>The whole stack</h2>
+
+<table><thead><tr><th style="width:44mm">Command</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><code>python tasks.py up</code></td><td>Start all nine containers, built and in the right order.</td></tr>
+  <tr><td><code>python tasks.py logs</code></td><td>Follow the logs from everything.</td></tr>
+  <tr><td><code>python tasks.py down</code></td><td>Stop everything, keeping the data.</td></tr>
+  <tr><td><code>python tasks.py nuke</code></td><td>Stop everything and <strong>delete the data</strong>. Destructive.</td></tr>
+</tbody></table>
+
+<h2>The one command that checks everything</h2>
+
+<pre><code><span class="c"># Style, tests, model build, benchmark, report, drift, backup, restore-verify</span>
+python tasks.py verify
+
+<span class="c"># The same, plus the full container stack and a live smoke test (slow, needs Docker)</span>
+python tasks.py verify-all</code></pre>
+
+<h2>Where things live</h2>
+
+<table><thead><tr><th style="width:52mm">Path</th><th>What is in it</th></tr></thead><tbody>
+  <tr><td><span class="filepath">src/mlserve/</span></td><td>All the code.</td></tr>
+  <tr><td><span class="filepath">src/mlserve/bench/</span></td><td>The benchmark: runner, statistics, report.</td></tr>
+  <tr><td><span class="filepath">src/mlserve/drift/</span></td><td>Drift reference and detection.</td></tr>
+  <tr><td><span class="filepath">src/mlserve/ops/</span></td><td>Backup, restore verification, test data.</td></tr>
+  <tr><td><span class="filepath">configs/</span></td><td>All the settings, with reasons in the comments.</td></tr>
+  <tr><td><span class="filepath">artifacts/</span></td><td>Generated: model files, drift reference.</td></tr>
+  <tr><td><span class="filepath">results/</span></td><td>Generated: raw data, report, charts.</td></tr>
+  <tr><td><span class="filepath">backups/</span></td><td>Generated: backup archives.</td></tr>
+  <tr><td><span class="filepath">tests/</span></td><td>All 255 checks.</td></tr>
+  <tr><td><span class="filepath">monitoring/</span></td><td>Prometheus, Alertmanager and Grafana configuration.</td></tr>
+  <tr><td><span class="filepath">ansible/</span></td><td>Server setup description, 6 roles.</td></tr>
+  <tr><td><span class="filepath">terraform/</span></td><td>Infrastructure description, 2 environments.</td></tr>
+  <tr><td><span class="filepath">.github/workflows/</span></td><td>The three automatic checking jobs.</td></tr>
+  <tr><td><span class="filepath">VERIFICATION.md</span></td><td>The record of what was proven, and what was not.</td></tr>
+</tbody></table>
+
+<h2>Web addresses when the stack is running</h2>
+
+<table><thead><tr><th style="width:52mm">Address</th><th>What you will see</th></tr></thead><tbody>
+  <tr><td><code>http://localhost:8000/docs</code></td><td>A clickable page describing every API endpoint. Try it here.</td></tr>
+  <tr><td><code>http://localhost:8000/metrics</code></td><td>The raw numbers being published.</td></tr>
+  <tr><td><code>http://localhost:3000</code></td><td>Grafana — the dashboards.</td></tr>
+  <tr><td><code>http://localhost:9090</code></td><td>Prometheus — query the stored metrics.</td></tr>
+  <tr><td><code>http://localhost:9093</code></td><td>Alertmanager — see what alerts are active.</td></tr>
+</tbody></table>
+
+<div class="box later">
+  <span class="box-title">One last thing</span>
+  <p>If you take a single habit away from this document, take this one:</p>
+  <p style="margin-top:2mm"><strong>When something works, ask what would make it fail. When something fails, ask why it was invisible. And when you cannot tell, say so — clearly, and with the reason.</strong></p>
+  <p style="margin-top:2mm">That is what separates this project from a demo, and it is the whole difference between writing code that runs and building systems people can rely on.</p>
+</div>
+</div>
+
+</body>
+</html>

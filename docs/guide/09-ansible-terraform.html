@@ -1,0 +1,231 @@
+<!-- ======================================================== ANSIBLE -->
+<div class="part-start">
+<span class="part-num">PART 14</span>
+<h1 class="part">The robot installer: Ansible</h1>
+
+<p class="lede">How you set up one server — or a hundred — without doing any of it by hand, and without forgetting step 7 next time.</p>
+
+<h2>What is it?</h2>
+
+<p>A tool that takes a written description of how a computer should be set up, and makes the computer match it. It connects over the network, checks what is already there, and only changes what is wrong.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You are moving into a new house. Instead of walking around deciding where things go, you write a checklist: "the kettle goes on the left counter, the plates in the top cupboard, the towels in the bathroom."</p>
+  <p>Now you hand that list to a helper. They set up the house. And the magic part: if you run the list again tomorrow, they check each item, see it is already correct, and <strong>change nothing</strong>. That is the whole idea.</p>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Before the project can run, a server needs: the right user accounts, a firewall configured, the container engine installed, the code fetched, services installed with timers, log rotation set up. That is a long list of steps.</p>
+  <p style="margin-top:2mm">Done by hand, three problems appear immediately:</p>
+  <ul style="margin-top:1.5mm">
+    <li><strong>It is not repeatable.</strong> The second server will be set up slightly differently, because you will forget something or do steps in a different order.</li>
+    <li><strong>It is not reviewable.</strong> Nobody can check your work. There is no record of what you did.</li>
+    <li><strong>It is not recoverable.</strong> If a server dies, rebuilding it means doing everything again from memory.</li>
+  </ul>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>Six roles, each doing one job</h3>
+
+<table><thead><tr><th style="width:28mm">Role</th><th>What it sets up</th></tr></thead><tbody>
+  <tr><td><strong>base</strong></td><td>Basic system packages and settings that everything else assumes.</td></tr>
+  <tr><td><strong>users</strong></td><td>Service accounts and their permissions.</td></tr>
+  <tr><td><strong>firewall</strong></td><td>Which network ports are open and which are closed. Deny by default.</td></tr>
+  <tr><td><strong>docker</strong></td><td>The container engine itself.</td></tr>
+  <tr><td><strong>deploy</strong></td><td>The application: fetch the code, install the timers and services that run it.</td></tr>
+  <tr><td><strong>logrotate</strong></td><td>Stops log files growing until the disk fills.</td></tr>
+</tbody></table>
+
+<p>The word <em>role</em> just means "a reusable bundle of instructions that belongs together." It means you can apply the firewall rules to any server, not only this one — the same bundle works for a different project entirely.</p>
+
+<h3>The key idea: describe the destination, not the journey</h3>
+
+<figure>
+<svg viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <text x="14" y="16" font-weight="700" font-size="10" fill="#a3244b">THE OLD WAY — commands</text>
+  <rect x="14" y="26" width="310" height="160" rx="5" fill="#fdeef3" stroke="#a3244b" stroke-width="1.3"/>
+  <text x="28" y="48" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">install nginx</text>
+  <text x="28" y="66" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">mkdir /etc/myapp</text>
+  <text x="28" y="84" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">cp config.yml /etc/myapp/</text>
+  <text x="28" y="102" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">systemctl start nginx</text>
+  <text x="28" y="126" fill="#a3244b" font-weight="700">Run it twice?</text>
+  <text x="28" y="142" fill="#46505f">It fails, or does damage — the folder</text>
+  <text x="28" y="156" fill="#46505f">already exists, the service is already</text>
+  <text x="28" y="170" fill="#46505f">running. You must write "check whether it</text>
+  <text x="28" y="182" fill="#46505f">is already done" around every step.</text>
+
+  <text x="376" y="16" font-weight="700" font-size="10" fill="#14663f">THE ANSIBLE WAY — a description</text>
+  <rect x="376" y="26" width="310" height="160" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.3"/>
+  <text x="390" y="48" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">nginx is installed</text>
+  <text x="390" y="66" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">/etc/myapp exists</text>
+  <text x="390" y="84" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">config.yml is at /etc/myapp/</text>
+  <text x="390" y="102" fill="#46505f" font-family="Consolas, monospace" font-size="8.5">the nginx service is running</text>
+  <text x="390" y="126" fill="#14663f" font-weight="700">Run it twice?</text>
+  <text x="390" y="142" fill="#46505f">Nothing happens the second time.</text>
+  <text x="390" y="156" fill="#46505f">It checks, sees everything already</text>
+  <text x="390" y="170" fill="#46505f">matches, and reports <tspan font-weight="700">"changed: 0"</tspan>.</text>
+  <text x="390" y="184" fill="#14663f" font-weight="700">That is the proof it worked.</text>
+</svg>
+<figcaption>Commands describe a journey. A good configuration describes a destination — and can be run any number of times safely.</figcaption>
+</figure>
+
+<div class="box why">
+  <span class="box-title">Why "changed: 0" is the goal</span>
+  <p>When you run the setup a second time on an already-correct machine, the ideal output is <strong>changed: 0, failed: 0</strong> — meaning "everything was already exactly right, I did nothing."</p>
+  <p style="margin-top:2mm">This is not a technicality. It is a real test of whether the description is complete and correct. If running it twice changes things, the description does not fully determine the outcome — which means two servers set up from it could end up different. <strong>Idempotent</strong> is the formal word, and it is the property that makes automation trustworthy.</p>
+</div>
+
+<h3>What we proved, and what we could not</h3>
+
+<table><thead><tr><th style="width:58mm">Check</th><th>Result</th></tr></thead><tbody>
+  <tr><td>The configuration is syntactically valid</td><td style="color:#14663f;font-weight:700">Proven — passes</td></tr>
+  <tr><td>All 56 tasks in 6 roles resolve correctly</td><td style="color:#14663f;font-weight:700">Proven — listed and verified</td></tr>
+  <tr><td>Best-practice linter finds no problems</td><td style="color:#14663f;font-weight:700">Proven — clean</td></tr>
+  <tr><td>Actually setting up a real, live machine</td><td style="color:#8a5200;font-weight:700">Not proven here</td></tr>
+</tbody></table>
+
+<p>The last row is the honest gap. Testing the real thing requires a virtual machine, which on this Windows machine requires a system component that is not currently enabled. It is not a flaw in the configuration — it is simply not exercised.</p>
+
+<p>So the project says exactly that: <em>"the configuration is verified to be well-formed and complete; it has not been applied to a real machine."</em> It would be easy to phrase that as "fully verified Ansible deployment" and most readers would not check. Stating the limit is the entire point of the project.</p>
+
+<h3>A real problem we hit — and its lesson</h3>
+
+<div class="box warn">
+  <span class="box-title">Two versions of the linter disagreed</span>
+  <p>The automated build machine used one version of the quality-checking tool; the local machine had an older one. They gave different answers about the same files.</p>
+  <p style="margin-top:2mm">This is a genuinely nasty class of problem: <strong>the check passes for you and fails for everyone else</strong>, with no code difference to explain it. It wastes hours, and it erodes trust in the automation.</p>
+  <p style="margin-top:2mm">The fix has two parts. First, run the newer version locally to make the two agree. Second, understand <em>why</em> the newer version complained — in this case, it wanted variable names to be more specific, so that a variable belonging to one role does not accidentally collide with a similarly-named variable in another role. That is a real robustness improvement, not nitpicking.</p>
+  <p style="margin-top:2mm"><strong>The lesson:</strong> pin your tool versions, and when a check disagrees between two environments, treat that as a genuine finding rather than an annoyance to silence.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Ansible is one of the three big configuration tools</strong> (with Puppet and Chef) and is the most common in cloud and DevOps roles. Knowing roles, idempotency and inventory is directly marketable.</li>
+    <li><strong>Idempotency as a concept</strong> applies far beyond servers: database migrations you can re-run, deployment scripts, API operations, message processing. It is one of the most valuable ideas in distributed systems.</li>
+    <li><strong>Configuration as code</strong> — storing your infrastructure setup in version control, where it can be reviewed and rolled back — is standard practice everywhere.</li>
+    <li><strong>Being explicit about untested paths</strong> will come up every time you ship automation. "I verified the script parses but did not run it against production" is a complete, honest sentence that colleagues can act on.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== TERRAFORM -->
+<div class="part-start">
+<span class="part-num">PART 15</span>
+<h1 class="part">The robot builder: Terraform</h1>
+
+<p class="lede">Ansible sets up a computer that already exists. Terraform creates the computer in the first place. Together they cover the whole life of a server.</p>
+
+<h2>What is it?</h2>
+
+<p>A tool where you write down what computers you want, and it talks to your cloud provider to make them exist — networks, servers, addresses, firewalls and all.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>Ansible is the helper who furnishes your house. Terraform is the builder who <em>builds the house</em> — and who will also knock it down cleanly when you are done with it.</p>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>You need a server. So you log into a cloud website, click through a form, choose a size, pick a region, click create. It works. Now do it again for the next environment.</p>
+  <p style="margin-top:2mm">Two problems. First, nobody wrote down what you clicked — there is no record, no review, no way to make the same thing again exactly. Second, when you are finished experimenting, the server keeps running and <strong>keeps costing money</strong>, because nothing told the cloud to stop.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The same description, two destinations</h3>
+
+<p>The infrastructure is written once as a reusable module, then used by two different environments:</p>
+
+<table><thead><tr><th style="width:30mm">Environment</th><th>Creates</th><th>Purpose</th></tr></thead><tbody>
+  <tr>
+    <td><strong>local</strong></td>
+    <td>A virtual machine on your own computer</td>
+    <td>A place to practise and test without paying anything or touching the internet.</td>
+  </tr>
+  <tr>
+    <td><strong>free-tier</strong></td>
+    <td>A real cloud server on a free allowance</td>
+    <td>Proves the same description works against a real provider.</td>
+  </tr>
+</tbody></table>
+
+<p>This is the point of writing infrastructure as code: <strong>the same description produces the same shaped thing</strong> in both places. Testing locally tells you something about what will happen in the cloud.</p>
+
+<h3>The clever part: a server that sets itself up</h3>
+
+<p>Creating a server and then configuring it are two separate steps. But there is a neat trick that merges them: when the server is created, you hand it a <em>script to run the moment it first boots</em>.</p>
+
+<figure>
+<svg viewBox="0 0 700 170" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <defs><marker id="ar7" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <rect x="14" y="40" width="128" height="60" rx="5" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.5"/>
+  <text x="78" y="60" text-anchor="middle" font-weight="700" fill="#5b3a9e">Terraform</text>
+  <text x="78" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">"I want a small</text>
+  <text x="78" y="88" text-anchor="middle" font-size="8.5" fill="#46505f">server, in this region"</text>
+
+  <path d="M142,70 L182,70" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar7)"/>
+
+  <rect x="186" y="40" width="128" height="60" rx="5" fill="#fff" stroke="#7a8798" stroke-width="1.4"/>
+  <text x="250" y="60" text-anchor="middle" font-weight="700">Cloud provider</text>
+  <text x="250" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">creates the machine</text>
+  <text x="250" y="88" text-anchor="middle" font-size="8.5" fill="#46505f">and hands it a script</text>
+
+  <path d="M314,70 L354,70" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar7)"/>
+
+  <rect x="358" y="40" width="150" height="60" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.5"/>
+  <text x="433" y="60" text-anchor="middle" font-weight="700" fill="#14663f">First boot</text>
+  <text x="433" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">the script runs by itself:</text>
+  <text x="433" y="88" text-anchor="middle" font-size="8.5" fill="#46505f">installs Docker, fetches code</text>
+
+  <path d="M508,70 L548,70" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar7)"/>
+
+  <rect x="552" y="40" width="134" height="60" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.5"/>
+  <text x="619" y="60" text-anchor="middle" font-weight="700" fill="#1e5fb4">A working server</text>
+  <text x="619" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">no human logged in</text>
+  <text x="619" y="88" text-anchor="middle" font-size="8.5" fill="#46505f">and typed anything</text>
+
+  <text x="350" y="24" text-anchor="middle" font-size="10" fill="#46505f">Self-provisioning: the server sets itself up on its very first breath</text>
+
+  <rect x="186" y="122" width="350" height="38" rx="5" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.2"/>
+  <text x="361" y="139" text-anchor="middle" font-size="9" fill="#8a5200" font-weight="700">And when you are finished: one command destroys it all</text>
+  <text x="361" y="153" text-anchor="middle" font-size="8.5" fill="#46505f">No forgotten servers quietly costing money for months.</text>
+</svg>
+<figcaption>Terraform creates the machine and gives it instructions for its first moments.</figcaption>
+</figure>
+
+<h3>What we proved, and how</h3>
+
+<table><thead><tr><th style="width:52mm">Check</th><th>Result</th></tr></thead><tbody>
+  <tr><td>The provider plugin downloads correctly</td><td style="color:#14663f;font-weight:700">Proven</td></tr>
+  <tr><td>The description is valid — for <em>both</em> environments</td><td style="color:#14663f;font-weight:700">Proven</td></tr>
+  <tr><td>Terraform can plan the change without doing it</td><td style="color:#14663f;font-weight:700">Proven — "2 to add, 0 to change, 0 to destroy"</td></tr>
+  <tr><td>Formatting follows the standard style</td><td style="color:#14663f;font-weight:700">Proven</td></tr>
+  <tr><td>The plugin version is locked down</td><td style="color:#14663f;font-weight:700">Proven — lock files committed</td></tr>
+</tbody></table>
+
+<div class="box why">
+  <span class="box-title">Two ideas worth stealing</span>
+  <p><strong>Plan before applying.</strong> Terraform can tell you exactly what it is <em>about to</em> do, without doing it: "2 things will be created, 0 changed, 0 destroyed." That is a safety net no manual process has. You get to read the consequences before you accept them.</p>
+  <p style="margin-top:2mm"><strong>Lock the plugin version.</strong> The tool relies on an add-on written by someone else. If that add-on publishes a new version with a bug, your infrastructure breaks for reasons that have nothing to do with your code. Committing a lock file means you only move versions when you choose to. This is the same lesson as the Ansible version mismatch — <em>pin your dependencies</em> — showing up in a different place.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Terraform is the most widely used infrastructure-as-code tool</strong> and appears in nearly every cloud job advertisement. It works with AWS, Azure, Google Cloud and dozens of others.</li>
+    <li><strong>The plan/apply pattern</strong> — preview the change, then confirm it — is the correct way to make any risky change.</li>
+    <li><strong>Self-provisioning machines</strong> are how auto-scaling works. When load rises, new servers appear and must configure themselves with nobody watching.</li>
+    <li><strong>Being able to destroy cleanly</strong> is a genuine engineering concern: orphaned cloud resources are a common and expensive problem in real companies.</li>
+    <li><strong>Lock files</strong> appear in every ecosystem — <code>package-lock.json</code>, <code>poetry.lock</code>, <code>Gemfile.lock</code>. The reason is always the same.</li>
+  </ul>
+</div>
+</div>

@@ -1,0 +1,193 @@
+<!-- ======================================================== CI -->
+<div class="part-start">
+<span class="part-num">PART 16</span>
+<h1 class="part">The homework checker: CI/CD</h1>
+
+<p class="lede">Robots that check your work every time you change it — so that problems are found in minutes, by a machine, instead of in production, by a customer.</p>
+
+<h2>What is it?</h2>
+
+<p><strong>Continuous Integration</strong> means: every time you save your work to the shared repository, a robot automatically checks it. <strong>Continuous Delivery</strong> means: if all the checks pass, the robot can also publish or deploy it.</p>
+
+<div class="kid">
+  <span class="box-title">Imagine it like this</span>
+  <p>You hand in homework. Instead of waiting a week to find out you got question 4 wrong, a helper checks it the moment you finish, every time, and tells you immediately.</p>
+  <p>An hour later you have already forgotten what you were thinking when you made the mistake. A week later you have no idea at all. Checking immediately is worth ten times more than checking eventually.</p>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Your checks only run when you remember to run them. And you will forget — not through carelessness, but because at 1am when you are fixing one last thing, running the full test suite is the step that feels skippable.</p>
+  <p style="margin-top:2mm">Then it becomes someone else's problem. Broken code reaches the shared branch, and everyone who pulls it gets a broken project. The person who finds out is never the person who broke it.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>Three separate robot jobs</h3>
+
+<figure>
+<svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <defs><marker id="ar8" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <rect x="250" y="10" width="200" height="38" rx="5" fill="#f5f7fa" stroke="#46505f" stroke-width="1.4"/>
+  <text x="350" y="27" text-anchor="middle" font-weight="700" font-size="9.5">You save your work</text>
+  <text x="350" y="40" text-anchor="middle" font-size="8.5" fill="#46505f">(git push)</text>
+
+  <path d="M350,48 L350,64" stroke="#7a8798" stroke-width="1.6"/>
+  <path d="M110,64 L590,64" stroke="#7a8798" stroke-width="1.6"/>
+  <path d="M110,64 L110,84" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar8)"/>
+  <path d="M350,64 L350,84" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar8)"/>
+  <path d="M590,64 L590,84" stroke="#7a8798" stroke-width="1.6" marker-end="url(#ar8)"/>
+
+  <!-- ci -->
+  <rect x="14" y="88" width="192" height="120" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.5"/>
+  <text x="110" y="106" text-anchor="middle" font-weight="700" fill="#1e5fb4">ci — is it correct?</text>
+  <text x="26" y="126" fill="#46505f">• lint (style rules)</text>
+  <text x="26" y="141" fill="#46505f">• tests on Python 3.11–3.14</text>
+  <text x="26" y="156" fill="#46505f">• train + export + parity</text>
+  <text x="26" y="171" fill="#46505f">• benchmark smoke run</text>
+  <text x="26" y="186" fill="#46505f">• build the container image</text>
+  <text x="26" y="201" fill="#46505f">• Ansible + Terraform checks</text>
+
+  <!-- security -->
+  <rect x="254" y="88" width="192" height="120" rx="5" fill="#fdeef3" stroke="#a3244b" stroke-width="1.5"/>
+  <text x="350" y="106" text-anchor="middle" font-weight="700" fill="#a3244b">security — is it safe?</text>
+  <text x="266" y="126" fill="#46505f">• dependency vulnerabilities</text>
+  <text x="266" y="141" fill="#46505f">• container image scanning</text>
+  <text x="266" y="156" fill="#46505f">• static code analysis</text>
+  <text x="266" y="171" fill="#46505f">• leaked-secret detection</text>
+  <text x="266" y="186" fill="#46505f">• uploads findings for review</text>
+
+  <!-- bench -->
+  <rect x="494" y="88" width="192" height="120" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.5"/>
+  <text x="590" y="106" text-anchor="middle" font-weight="700" fill="#14663f">bench — how fast?</text>
+  <text x="506" y="126" fill="#46505f">• runs on a version tag</text>
+  <text x="506" y="141" fill="#46505f">• full benchmark matrix</text>
+  <text x="506" y="156" fill="#46505f">• builds the report</text>
+  <text x="506" y="171" fill="#46505f">• publishes a release with</text>
+  <text x="516" y="186" fill="#46505f">the report and 3 charts</text>
+</svg>
+<figcaption>Three independent questions, three independent robots. Any one failing blocks the change.</figcaption>
+</figure>
+
+<h3>Why the benchmark runs on a tag, not on every change</h3>
+
+<p>The full benchmark takes several minutes and produces a report with charts. Running it on every single save would be wasteful and would produce dozens of near-identical reports nobody reads.</p>
+
+<p>So it runs when you mark a <strong>version</strong> — a tag like <code>v0.1.0</code>, meaning "this is a real release." The report and the charts get attached to that release permanently, as the record of what that version measured on the day it was published.</p>
+
+<div class="box why">
+  <span class="box-title">Why this project avoids paid services entirely</span>
+  <p>The rule for this project is <strong>zero cost</strong>. So there is no paid monitoring service, no paid build runner, no managed database. Everything runs on free allowances or on the developer's own machine.</p>
+  <p style="margin-top:2mm">This is not only about money. It is also a stronger demonstration: an engineer who can build a complete, monitored, tested, deployable system with free tools has shown they understand what each piece is really <em>for</em>. Anyone can buy a service. Knowing which service you would buy, and why, requires the understanding this project is trying to build.</p>
+</div>
+
+<h3>The robot that updates dependencies</h3>
+
+<p>There is a fourth robot that does something different: it watches for new versions of the tools the project uses, and proposes an update for each one.</p>
+
+<table><thead><tr><th style="width:44mm">Robot proposes an update to</th><th>Why</th></tr></thead><tbody>
+  <tr><td>The actions used in the checking itself</td><td>Keeps the checking machinery current and secure.</td></tr>
+  <tr><td>Python libraries</td><td>Security fixes and bug fixes in dependencies.</td></tr>
+  <tr><td>The base container image</td><td>Operating-system security patches.</td></tr>
+</tbody></table>
+
+<p>Each proposal arrives as a small, separate change you can review and accept or reject. That is much safer than updating everything at once, because if something breaks you know exactly which change caused it.</p>
+
+<div class="box warn">
+  <span class="box-title">Why not accept them all automatically?</span>
+  <p>Because updates can genuinely break things, and the project's own history proves it. When the base image moved from Python 3.12 to 3.14, the automatic checks <em>all passed</em> — but they had been testing Python up to 3.13 only. The version actually being deployed was never tested.</p>
+  <p style="margin-top:2mm">Everything was green. The gap was invisible. This is the most dangerous kind of problem: <strong>a check that passes for the wrong reason</strong>.</p>
+  <p style="margin-top:2mm"><strong>The fix</strong> was not to stop accepting updates. It was to add a check that reads the container's stated Python version and <em>refuses to pass unless that version is in the tested list</em>. Now the two cannot drift apart silently again — in either direction.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>CI is universal.</strong> GitHub Actions, GitLab CI, Jenkins, CircleCI, Azure Pipelines — every professional team has one, and every interview will touch it.</li>
+    <li><strong>Splitting checks into "correct", "secure" and "performance"</strong> mirrors how real teams organise their pipelines, and how they think about release readiness.</li>
+    <li><strong>Automated dependency updates</strong> are now standard practice and a genuine security control. Most breaches exploit known vulnerabilities in outdated dependencies.</li>
+    <li><strong>"A check that passes for the wrong reason"</strong> is a phrase worth remembering. When something is green, ask what it would take for it to go red. If you cannot answer, it may be checking nothing.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== TESTS -->
+<div class="part-start">
+<span class="part-num">PART 17</span>
+<h1 class="part">How we know it works: the tests</h1>
+
+<p class="lede">255 automatic checks. This part explains what they are for, and why the most valuable ones are the ones that check for failure.</p>
+
+<h2>What is it?</h2>
+
+<p>Small programs that run your code and check it behaves as expected. Run them all with one command; if anything is wrong, you are told immediately.</p>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Software changes constantly. Every change risks breaking something that used to work — and the connection is often not obvious. You fix a display bug and break the backup job.</p>
+  <p style="margin-top:2mm">Tests are how you make changes <em>confidently</em>. Without them every change is a gamble, and the natural response is to become afraid of changing anything. That is how projects die: not from bugs, but from nobody daring to touch them.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>Fourteen test files, each guarding one area</h3>
+
+<table><thead><tr><th style="width:44mm">Test file</th><th>What it protects</th></tr></thead><tbody>
+  <tr><td><span class="filepath">test_model.py</span></td><td>The model trains, the data splits correctly, no leakage.</td></tr>
+  <tr><td><span class="filepath">test_api.py</span></td><td>Every endpoint behaves correctly — including for bad input.</td></tr>
+  <tr><td><span class="filepath">test_schema.py</span></td><td>Requests are validated; wrong shapes are rejected.</td></tr>
+  <tr><td><span class="filepath">test_registry.py</span></td><td>All three runtimes load and predict consistently.</td></tr>
+  <tr><td><span class="filepath">test_stats.py</span></td><td>The statistics are mathematically correct.</td></tr>
+  <tr><td><span class="filepath">test_report.py</span></td><td>The report is generated correctly from raw data.</td></tr>
+  <tr><td><span class="filepath">test_drift.py</span></td><td>Drift is detected when present, and <em>not</em> when absent.</td></tr>
+  <tr><td><span class="filepath">test_backup.py</span></td><td>Backups restore correctly — and corruption is caught.</td></tr>
+  <tr><td><span class="filepath">test_monitoring.py</span></td><td>Monitoring configuration is valid and wired together correctly.</td></tr>
+  <tr><td><span class="filepath">test_ansible.py</span></td><td>The server setup description is complete and well-formed.</td></tr>
+  <tr><td><span class="filepath">test_terraform.py</span></td><td>The infrastructure description is valid for both environments.</td></tr>
+  <tr><td><span class="filepath">test_packaging.py</span></td><td>The container and build files are consistent with each other.</td></tr>
+  <tr><td><span class="filepath">test_alert_sink.py</span></td><td>Alerts can actually be delivered.</td></tr>
+  <tr><td><span class="filepath">test_seed.py</span></td><td>Test data generation works.</td></tr>
+</tbody></table>
+
+<h3>The most valuable kind of test: checking that things fail correctly</h3>
+
+<p>Most tests check that things work. The best tests check that things <em>fail properly</em> — because failure paths are rarely exercised by hand and are where the surprising bugs live.</p>
+
+<table><thead><tr><th style="width:56mm">Test</th><th>What it proves</th></tr></thead><tbody>
+  <tr><td>Send a deliberately corrupted backup archive</td><td>The verifier <strong>rejects</strong> it — so we know it checks, rather than always passing.</td></tr>
+  <tr><td>Send a batch larger than the limit</td><td>It returns a clear error, not a silently truncated answer.</td></tr>
+  <tr><td>Send values that are not real numbers</td><td>It returns "bad request", not "server crashed".</td></tr>
+  <tr><td>Ask for drift on data that has not drifted</td><td>It reports <strong>stable</strong> — no false alarm.</td></tr>
+  <tr><td>Ask for drift on deliberately shifted data</td><td>It reports <strong>alert</strong> — catches the real thing.</td></tr>
+  <tr><td>Try to load a runtime that does not exist</td><td>A clear, readable message — not a confusing internal error.</td></tr>
+</tbody></table>
+
+<div class="box why">
+  <span class="box-title">Why the "no drift" test is as important as the "drift" test</span>
+  <p>It would be easy to write a drift detector that always shouts "DRIFT!" and pass every test that checks it detects drift. It would also be completely useless.</p>
+  <p style="margin-top:2mm">So the tests check both directions: it must fire on genuinely shifted data, <em>and</em> stay quiet on normal data. A detector that fails either one is not usable. Testing only the positive case is one of the most common mistakes in test suites.</p>
+</div>
+
+<h3>One test worth explaining in detail</h3>
+
+<p>During the work on this project, the report took 113 seconds to generate because of how the statistics were calculated, and it was made about 10× faster. Whenever you speed something up, you must prove the answer did not change — and "close enough" is not good enough for a replacement that is supposed to be identical.</p>
+
+<p>So there is a test that runs both the old way and the new way <strong>on exactly the same random draws</strong>, and asserts the results match exactly. Not "approximately." Exactly.</p>
+
+<p>That distinction matters. If the test only checked that the answers were close, a genuine difference could hide inside the randomness and nobody would ever know. Pinning the random draws removes the randomness from the comparison entirely, leaving only the thing being tested.</p>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Testing failure paths</strong> is the single most underrated testing habit. It is where the interesting bugs are, and it is what separates a test suite that gives confidence from one that gives the <em>feeling</em> of confidence.</li>
+    <li><strong>Testing both directions</strong> — detects when it should, stays quiet when it should — applies to every detector you ever build: alerts, filters, validators, search functions, anomaly detection.</li>
+    <li><strong>Proving an optimisation did not change the result</strong> is how you safely make anything faster. It is also exactly what the export parity check does for the three runtimes.</li>
+    <li><strong>Pin the randomness</strong> in any comparison involving chance, or you are comparing noise to noise.</li>
+  </ul>
+</div>
+</div>

@@ -1,0 +1,250 @@
+<!-- ======================================================== COMPOSE -->
+<div class="part-start">
+<span class="part-num">PART 12</span>
+<h1 class="part">The whole kitchen: Docker Compose</h1>
+
+<p class="lede">Nine separate programs that must start in the correct order, find each other, and share data. This is the file that describes the entire system in one place.</p>
+
+<h2>What is it?</h2>
+
+<p>A single text file listing every piece of the running system — what each one is, how it is configured, what it needs, and in what order things must happen.</p>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Our system is not one program. It is nine: the model builder, the API, the drift job, the backup job, four monitoring programs, and a small test server. Each one needs the right settings, the right folders connected, and the right ports.</p>
+  <p style="margin-top:2mm">Without a single description, starting the system means typing nine long commands in the right order, remembering every setting, and hoping you got them all right. Nobody can reproduce that, and nobody can review it.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The nine containers</h3>
+
+<table><thead><tr><th style="width:34mm">Container</th><th style="width:20mm">Job</th><th>What it does</th></tr></thead><tbody>
+  <tr><td><strong>init</strong></td><td>one-off</td><td>Trains the model, exports the three runtimes, builds the drift reference. Then stops.</td></tr>
+  <tr><td><strong>api</strong></td><td>permanent</td><td>The shop counter. Answers prediction requests.</td></tr>
+  <tr><td><strong>drift</strong></td><td>loop</td><td>Checks for drift every 5 minutes.</td></tr>
+  <tr><td><strong>backup</strong></td><td>loop</td><td>Backs up and verifies every hour.</td></tr>
+  <tr><td><strong>prometheus</strong></td><td>permanent</td><td>Collects and stores all the numbers.</td></tr>
+  <tr><td><strong>alertmanager</strong></td><td>permanent</td><td>Decides who to tell when something is wrong.</td></tr>
+  <tr><td><strong>grafana</strong></td><td>permanent</td><td>Draws the dashboards humans look at.</td></tr>
+  <tr><td><strong>node-exporter</strong></td><td>permanent</td><td>Reads the drift job's numbers from a file and republishes them.</td></tr>
+  <tr><td><strong>alert-sink</strong></td><td>permanent</td><td>A tiny test server that receives alerts, so we can prove alerting works end to end.</td></tr>
+</tbody></table>
+
+<h3>The startup order — and why it cannot be guessed</h3>
+
+<figure>
+<svg viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9.5">
+  <defs><marker id="ar6" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#7a8798"/></marker></defs>
+
+  <rect x="14" y="40" width="120" height="52" rx="5" fill="#eef4fc" stroke="#1e5fb4" stroke-width="1.6"/>
+  <text x="74" y="60" text-anchor="middle" font-weight="700" fill="#1e5fb4">init</text>
+  <text x="74" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">builds the model</text>
+  <text x="74" y="87" text-anchor="middle" font-size="8" fill="#a3244b">must FINISH first</text>
+
+  <path d="M134,66 L176,66" stroke="#7a8798" stroke-width="1.8" marker-end="url(#ar6)"/>
+  <text x="155" y="56" text-anchor="middle" font-size="7.5" fill="#46505f">finished</text>
+  <text x="155" y="80" text-anchor="middle" font-size="7.5" fill="#46505f">successfully</text>
+
+  <rect x="180" y="40" width="120" height="52" rx="5" fill="#ecf7f0" stroke="#14663f" stroke-width="1.6"/>
+  <text x="240" y="60" text-anchor="middle" font-weight="700" fill="#14663f">api</text>
+  <text x="240" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">starts serving</text>
+  <text x="240" y="87" text-anchor="middle" font-size="8" fill="#14663f">must be HEALTHY</text>
+
+  <path d="M300,66 L342,66" stroke="#7a8798" stroke-width="1.8" marker-end="url(#ar6)"/>
+
+  <rect x="346" y="40" width="130" height="52" rx="5" fill="#fdf4e6" stroke="#8a5200" stroke-width="1.6"/>
+  <text x="411" y="60" text-anchor="middle" font-weight="700" fill="#8a5200">prometheus</text>
+  <text x="411" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">starts collecting</text>
+
+  <path d="M476,66 L518,66" stroke="#7a8798" stroke-width="1.8" marker-end="url(#ar6)"/>
+
+  <rect x="522" y="40" width="120" height="52" rx="5" fill="#f2eefb" stroke="#5b3a9e" stroke-width="1.6"/>
+  <text x="582" y="60" text-anchor="middle" font-weight="700" fill="#5b3a9e">grafana</text>
+  <text x="582" y="76" text-anchor="middle" font-size="8.5" fill="#46505f">draws charts</text>
+
+  <text x="350" y="24" text-anchor="middle" font-size="10" fill="#46505f">The chain: each stage waits for the one before it to be genuinely ready</text>
+
+  <rect x="180" y="118" width="290" height="46" rx="5" fill="#f5f7fa" stroke="#d7dde5" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="325" y="136" text-anchor="middle" font-size="9" fill="#46505f">drift and backup run in parallel from here —</text>
+  <text x="325" y="152" text-anchor="middle" font-size="9" fill="#46505f">they only need the model, not the web service</text>
+</svg>
+<figcaption>Two different kinds of "wait": wait for another job to finish, versus wait for another service to be healthy. Conflating them causes flapping.</figcaption>
+</figure>
+
+<div class="box warn">
+  <span class="box-title">The race condition this prevents</span>
+  <p>The API cannot serve predictions without model files. If both containers started at the same time, there would be a window where the API is running but its model files do not exist yet. It would report "not ready" — correctly — and then become ready a few seconds later.</p>
+  <p style="margin-top:2mm">That sounds harmless. It is not, because it happens on <em>every single start</em>. Automated systems that check health see a service that is intermittently unavailable, and may make decisions based on that — restart it, take it out of rotation, page someone.</p>
+  <p style="margin-top:2mm">Waiting for the model builder to <strong>finish successfully</strong> removes the window entirely. The API never exists in a state where it cannot serve.</p>
+</div>
+
+<h3>Data that must outlive the containers</h3>
+
+<p>Containers are disposable. Delete one and everything inside it is gone. But the model files, the request log, the results and the backups must survive. So each gets a <strong>named volume</strong> — a storage area that exists separately from any container.</p>
+
+<table><thead><tr><th style="width:34mm">Volume</th><th>Holds</th><th>Who can write</th></tr></thead><tbody>
+  <tr><td><code>artifacts</code></td><td>The three model files, the drift reference</td><td>init writes; api and drift <strong>read only</strong></td></tr>
+  <tr><td><code>data</code></td><td>The request log database</td><td>api, drift</td></tr>
+  <tr><td><code>results</code></td><td>Benchmark output, drift report</td><td>drift, init</td></tr>
+  <tr><td><code>backups</code></td><td>Backup archives</td><td>backup</td></tr>
+  <tr><td><code>drift-textfile</code></td><td>The drift numbers, in a format Prometheus can read</td><td>drift writes; node-exporter <strong>read only</strong></td></tr>
+</tbody></table>
+
+<p>Note the read-only ones. The API does not need to <em>change</em> the model files — only read them. So it is given read-only access. If the API were ever compromised, it could not corrupt the model the whole system depends on. That is one word in a config file buying a real safety property.</p>
+
+<h3>Small decisions with outsized effects</h3>
+
+<div class="cards">
+  <div class="card">
+    <h4>Ports are adjustable</h4>
+    <p>Everything the project listens on can be moved with a setting. Most developers already have something on port 8000 or 3000. A project whose first instruction fails with "port already in use" makes a bad first impression.</p>
+  </div>
+  <div class="card">
+    <h4>Timers are loops, not cron</h4>
+    <p>The drift and backup jobs are written as a simple loop with a sleep. One less program to run, and the interval is visible on a single line instead of buried in a scheduling file.</p>
+  </div>
+  <div class="card">
+    <h4>An exit code of 2 is not a failure</h4>
+    <p>The drift job exits with code 2 when it finds drift. That is a <em>finding</em>, not a crash. The loop distinguishes them, so a real drift alert does not look like a broken container.</p>
+  </div>
+  <div class="card">
+    <h4>Postgres is commented out on purpose</h4>
+    <p>A second database is included but disabled, with instructions. The restore-verification code only supports the primary one — and shipping a database whose backup cannot be proven would be worse than not offering it.</p>
+  </div>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Compose for local development is nearly universal.</strong> Almost every backend project has one. Being able to read and write one is a baseline skill.</li>
+    <li><strong>Startup ordering and health gates</strong> carry directly into Kubernetes (readiness probes, init containers) — the concepts are identical, only the vocabulary changes.</li>
+    <li><strong>Named volumes and read-only mounts</strong> are how state is managed in all container systems.</li>
+    <li><strong>Not shipping what you cannot verify</strong> — the disabled Postgres — is a judgement call interviewers notice. It is more impressive than offering every option.</li>
+  </ul>
+</div>
+</div>
+
+<!-- ======================================================== MONITORING -->
+<div class="part-start">
+<span class="part-num">PART 13</span>
+<h1 class="part">The dashboard and the alarm bell: monitoring</h1>
+
+<p class="lede">Three programs that answer three different questions: what is happening, what does it look like, and who needs to know.</p>
+
+<h2>What is it?</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>Prometheus — the record keeper</h4>
+    <p>Every 15 seconds it asks the API "what are your numbers?" and stores the answers with timestamps. It keeps 15 days of history.</p>
+  </div>
+  <div class="card">
+    <h4>Alertmanager — the decision maker</h4>
+    <p>When a rule fires, this decides who to tell, whether to repeat, and when to stop. It handles the annoying human problems: not sending 400 copies of the same alert.</p>
+  </div>
+  <div class="card">
+    <h4>Grafana — the picture maker</h4>
+    <p>Turns stored numbers into graphs a human can read at a glance. Pre-configured, so it works the moment you open it.</p>
+  </div>
+  <div class="card">
+    <h4>alert-sink — the tester</h4>
+    <p>A deliberately tiny web server whose only job is to receive alerts and print them. It exists so we can prove the whole alerting chain works, rather than assuming it does.</p>
+  </div>
+</div>
+
+<h2>Why did we need it?</h2>
+
+<div class="box need">
+  <span class="box-title">The problem before it</span>
+  <p>Without monitoring, you learn about problems from users. "The app is slow" is what you get instead of "response times crossed 50 ms at 14:02."</p>
+  <p style="margin-top:2mm">And without alerting, nobody knows at 3am. The service could be fully broken and the first anyone hears is at 9am when someone tries to use it.</p>
+</div>
+
+<h2>How does it work here?</h2>
+
+<h3>The numbers the API publishes</h3>
+
+<table><thead><tr><th style="width:52mm">Metric</th><th>Answers</th></tr></thead><tbody>
+  <tr><td><code>mlserve_requests_total</code></td><td>How many requests, broken down by endpoint and result.</td></tr>
+  <tr><td><code>mlserve_request_duration_seconds</code></td><td>How long they took — this is what produces p50, p95 and p99.</td></tr>
+  <tr><td><code>mlserve_batch_size</code></td><td>How many pictures arrived per request.</td></tr>
+  <tr><td><code>mlserve_model_loaded</code></td><td>Is the model actually loaded right now? 1 or 0.</td></tr>
+  <tr><td><code>mlserve_model_size_bytes</code></td><td>How big each runtime's file is.</td></tr>
+  <tr><td><code>mlserve_validation_errors_total</code></td><td>How many requests were rejected as malformed.</td></tr>
+  <tr><td><code>mlserve_inference_errors_total</code></td><td>How many times the model itself failed.</td></tr>
+  <tr><td><code>mlserve_db_write_errors_total</code></td><td>How many times a log write failed — a signal the database is in trouble.</td></tr>
+  <tr><td><code>mlserve_predictions_total</code></td><td>What the model has been predicting, by digit. If it starts saying "3" for everything, this shows it.</td></tr>
+</tbody></table>
+
+<h3>Special values called "histograms"</h3>
+
+<p>Latency is not a single number — it is a distribution. A histogram stores how many requests fell into each speed range. That is what allows the system to calculate "how slow was the slowest one in a hundred?"</p>
+
+<figure>
+<svg viewBox="0 0 700 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="9">
+  <text x="10" y="14" font-weight="700" font-size="10" fill="#46505f">HOW MANY REQUESTS TOOK HOW LONG</text>
+  <g>
+    <rect x="30" y="110" width="42" height="20" fill="#1e5fb4" opacity=".35"/>
+    <rect x="76" y="70" width="42" height="60" fill="#1e5fb4" opacity=".55"/>
+    <rect x="122" y="36" width="42" height="94" fill="#1e5fb4" opacity=".8"/>
+    <rect x="168" y="56" width="42" height="74" fill="#1e5fb4" opacity=".55"/>
+    <rect x="214" y="86" width="42" height="44" fill="#1e5fb4" opacity=".4"/>
+    <rect x="260" y="100" width="42" height="30" fill="#1e5fb4" opacity=".3"/>
+    <rect x="306" y="112" width="42" height="18" fill="#a3244b" opacity=".7"/>
+    <rect x="352" y="120" width="42" height="10" fill="#a3244b" opacity=".7"/>
+  </g>
+  <line x1="30" y1="130" x2="600" y2="130" stroke="#46505f" stroke-width="1.2"/>
+  <text x="51" y="145" text-anchor="middle" font-size="7.5" fill="#46505f">0.5ms</text>
+  <text x="143" y="145" text-anchor="middle" font-size="7.5" fill="#46505f">2.5ms</text>
+  <text x="235" y="145" text-anchor="middle" font-size="7.5" fill="#46505f">25ms</text>
+  <text x="327" y="145" text-anchor="middle" font-size="7.5" fill="#a3244b">100ms</text>
+  <text x="373" y="145" text-anchor="middle" font-size="7.5" fill="#a3244b">250ms</text>
+
+  <text x="160" y="30" font-size="9" fill="#14663f" font-weight="700">← the normal requests (p50 lives here)</text>
+  <text x="430" y="70" font-size="9" fill="#a3244b" font-weight="700">the slow tail →</text>
+  <text x="430" y="86" font-size="8.5" fill="#46505f">p99 lives out here. This is where</text>
+  <text x="430" y="99" font-size="8.5" fill="#46505f">the problems hide, and it is why</text>
+  <text x="430" y="112" font-size="8.5" fill="#46505f">averages are not enough.</text>
+</svg>
+<figcaption>A latency histogram. The interesting part is not the peak — it is how far to the right the tail stretches.</figcaption>
+</figure>
+
+<h3>The alert rules</h3>
+
+<table><thead><tr><th style="width:56mm">Rule name</th><th>Fires when</th></tr></thead><tbody>
+  <tr><td><code>MLServeP99LatencyBreach</code></td><td>p99 latency above 50 ms for 5 minutes.</td></tr>
+  <tr><td><code>MLServeP99LatencyCritical</code></td><td>p99 above 250 ms. Something is badly wrong.</td></tr>
+  <tr><td><code>MLServeModelNotLoaded</code></td><td>The model is not loaded. The service cannot do its job at all.</td></tr>
+  <tr><td><code>MLServeErrorRateHigh</code></td><td>Too many requests failing.</td></tr>
+  <tr><td><code>MLServeInferenceErrors</code></td><td>Any inference error at all in 10 minutes. Even one is worth knowing about.</td></tr>
+  <tr><td><code>MLServeDbWriteFailures</code></td><td>Log writes failing — the database is in trouble, and drift detection loses its data.</td></tr>
+  <tr><td><code>MLServeDriftDetected</code></td><td>The drift job found real drift.</td></tr>
+  <tr><td><code>MLServeDriftDetectorStale</code></td><td>The drift job has not run in 2 hours. <strong>The detector is broken.</strong></td></tr>
+  <tr><td><code>MLServeValidationErrorSpike</code></td><td>Sudden rush of malformed requests — usually a broken client, sometimes an attack.</td></tr>
+  <tr><td><code>MLServeTailPowerLow</code></td><td>Not enough data to compute a meaningful p99. <em>An honesty check in the monitoring itself.</em></td></tr>
+</tbody></table>
+
+<p>That last one deserves a moment. Most monitoring systems will happily draw a p99 from four data points and present it as fact. This one raises a flag saying "there is not enough data for this number to mean anything" — the same honesty principle from Part 7, carried all the way into the live dashboard.</p>
+
+<div class="box warn">
+  <span class="box-title">The awkward problem: the drift job has no web address</span>
+  <p>Prometheus collects numbers by asking services over the network. But the drift job is not a service — it runs, does its work, and exits. There is nothing to ask.</p>
+  <p style="margin-top:2mm">The traditional answer is a "push gateway": the job pushes its numbers somewhere and Prometheus reads them from there. That means running <em>another</em> container, plus the constant risk that Prometheus reads the numbers at a bad moment.</p>
+  <p style="margin-top:2mm"><strong>Our solution is simpler:</strong> the drift job writes its numbers to a file, and a small existing component reads that file. Two lines of configuration, no extra container, no timing window.</p>
+  <p style="margin-top:2mm">And the file is written by creating a temporary file and then <em>renaming</em> it — because renaming is instant and atomic. A reader either sees the old complete file or the new complete file, never a half-written one. Without this, Prometheus would occasionally read a partial file, fail to parse it, and produce a random dip in your graphs.</p>
+</div>
+
+<div class="box later">
+  <span class="box-title">Where will you use this again?</span>
+  <ul>
+    <li><strong>Prometheus and Grafana</strong> are close to industry standard for infrastructure monitoring. Reading a PromQL query or editing a dashboard is a common job requirement.</li>
+    <li><strong>The three-way split</strong> — collect, decide, display — is the right mental model for any monitoring system, including cloud-native ones where the names differ.</li>
+    <li><strong>Alert rules need as much thought as code.</strong> Every rule you write is a promise to wake someone up. Rules that fire when nothing is actionable actively make systems less reliable.</li>
+    <li><strong>Monitoring your monitoring</strong> — the "detector is stale" rule — is the mark of someone who has been on call. Systems fail in ways their own dashboards cannot show.</li>
+    <li><strong>Atomic file writes via rename</strong> is a genuinely useful trick for any situation where one program writes and another reads: log files, caches, lock files, config reloads.</li>
+  </ul>
+</div>
+</div>
